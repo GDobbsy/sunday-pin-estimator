@@ -306,13 +306,16 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
 .kv.sub .k,.kv.sub .v{font-size:13px; color:var(--ink-3); font-weight:500}
 
 /* ---------- stepper ---------- */
-.stepper{display:flex; gap:6px; margin-bottom:16px}
+.stepper{display:flex; gap:5px; margin-bottom:16px}
 .stepper .st{
-  flex:1; text-align:center; font-size:11px; font-weight:700; letter-spacing:.02em;
+  flex:1 1 auto; min-width:0; text-align:center; font-size:9.5px; font-weight:700; letter-spacing:0;
   color:var(--ink-3); padding-top:9px; border-top:3px solid var(--line);
   background:none; border-left:0; border-right:0; border-bottom:0; cursor:pointer;
-  text-transform:uppercase;
+  text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
+/* Five steps have to fit a phone. The number is scaffolding, not information —
+   the highlighted bar already says where you are — so it only shows on desktop. */
+.stepper .st-n{display:none}
 .stepper .st.done{color:var(--brand-700); border-top-color:var(--brand-600)}
 .stepper .st.on{color:var(--brand-900); border-top-color:var(--brand-900)}
 
@@ -530,6 +533,9 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
    DESKTOP
    ========================================================================== */
 @media (min-width:900px){
+.stepper{gap:6px}
+.stepper .st{flex:1 1 0; font-size:11px; letter-spacing:.02em}
+.stepper .st-n{display:inline}
   body{font-size:14.5px}
   #app{flex-direction:row}
   .sidebar{
@@ -581,8 +587,46 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
   .stats.six{grid-template-columns:repeat(4,1fr)}
 }
 
+.addr-field{position:relative}
+.addr-results{
+  position:absolute; left:0; right:0; top:100%; z-index:60; margin-top:4px;
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:0 10px 28px rgba(16,31,48,.18); overflow:hidden; max-height:260px; overflow-y:auto;
+}
+.addr-opt{
+  display:block; width:100%; text-align:left; background:none; border:0; cursor:pointer;
+  font-family:inherit; font-size:14px; line-height:1.4; padding:11px 13px; color:var(--ink);
+  border-bottom:1px solid var(--line);
+}
+.addr-opt:last-child{border-bottom:0}
+.addr-opt:hover,.addr-opt:focus{background:#f3f7f4; outline:none}
+
+.rows .row.on{background:#f3f7f4; box-shadow:inset 3px 0 0 var(--accent-700, #6b7752)}
+
+.stat.statlink{font-family:inherit; text-align:left; cursor:pointer; width:100%; display:block}
+.stat.statlink:hover{border-color:var(--brand-600)}
+.stat.statlink:active{transform:scale(.99)}
+
+/* ---------- crew work order sheet ---------- */
+.wo-title{font-size:15px; font-weight:750; letter-spacing:.06em; text-transform:uppercase; color:var(--brand-700); margin-top:10px}
+.wo-note{font-size:13px; line-height:1.55; color:var(--ink-2); margin:8px 0 0}
+.wo-line{border:1px solid var(--line); border-radius:var(--r); padding:12px 14px; margin-bottom:10px; background:var(--surface)}
+.wo-line-head{display:flex; align-items:baseline; gap:10px}
+.wo-line-head .wo-n{font-family:var(--mono); font-size:12px; color:var(--ink-3); flex-shrink:0}
+.wo-line-head .wo-name{font-weight:700; font-size:15px; flex:1; min-width:0}
+.wo-line-head .wo-hrs{font-weight:700; font-size:14px; color:var(--brand-700); flex-shrink:0}
+.wo-measure{font-size:13px; font-weight:650; color:var(--ink-2); margin-top:3px}
+.wo-desc{font-size:12.5px; line-height:1.5; color:var(--ink-2); margin:6px 0 0}
+.wo-cond{font-size:12.5px; line-height:1.5; margin-top:6px; color:var(--ink)}
+.wo-photos{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.wo-photos img{width:100%; border-radius:var(--r); display:block}
+.wo-photos figcaption{font-size:11.5px; color:var(--ink-3); margin-top:4px}
+.wo-signrow{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:20px}
+.wo-sign span{display:block; border-bottom:1px solid var(--ink-3); height:30px}
+.wo-sign label{display:block; font-size:10.5px; text-transform:uppercase; letter-spacing:.07em; color:var(--ink-3); font-weight:700; margin-top:5px}
+
 /* ==========================================================================
-   PRINT — customer proposal only
+   PRINT — client proposal and crew work order
    ========================================================================== */
 #printRoot{display:none}
 @media print{
@@ -599,6 +643,8 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
   .prop-group{break-inside:avoid}
   .prop-line{break-inside:avoid}
   .prop-photos{break-inside:avoid}
+  .wo-line{break-inside:avoid; border:1px solid #ccc!important}
+  .wo-signrow{break-inside:avoid}
   .prop-photos img{max-height:190px; object-fit:cover}
   .sign-box{break-inside:avoid}
   .prop-head{break-inside:avoid}
@@ -630,9 +676,10 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
       </button>
     </div>
     <nav id="sideNav" aria-label="Main">
-      <button data-nav="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> Dashboard</button>
+      <button data-nav="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> Home</button>
       <button data-nav="quotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg> Quotes</button>
-      <button data-nav="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Customers</button>
+      <button data-nav="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Clients</button>
+      <button data-nav="performance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-6"/></svg> Performance</button>
       <button data-nav="services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/><circle cx="19" cy="18" r="2"/></svg> Services &amp; Pricing</button>
       <button data-nav="materials"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.3 12 12l8.7-4.7M12 22V12"/></svg> Materials</button>
       <button data-nav="settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.4a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a1.7 1.7 0 0 0-1.6-1H1a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 3 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 3a1.7 1.7 0 0 0 1-1.6V1a2 2 0 1 1 4 0v.1A1.7 1.7 0 0 0 15 3a1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 9v0a1.7 1.7 0 0 0 1.6 1h.4a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg> Settings</button>
@@ -664,7 +711,7 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
     <button data-nav="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span>Home</span></button>
     <button data-nav="quotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span>Quotes</span></button>
     <button data-nav="neweditor" class="fab-nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span>New</span></button>
-    <button data-nav="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg><span>Customers</span></button>
+    <button data-nav="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg><span>Clients</span></button>
     <button data-nav="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg><span>More</span></button>
   </nav>
 </div>
@@ -1270,6 +1317,48 @@ function defaultAdjustments() {
   return out;
 }
 
+/* --- how a service is priced --------------------------------------------
+   UNIT  — the customer buys a measured result. Production work: the machine
+           does the work, so the labor hour is not what is being sold.
+   LABOR — the customer is buying hours of a person's time. The selling rate
+           is DERIVED from the labor billing rate, so it can never drift away
+           from what an hour is charged at:
+               rate per unit = billing rate ÷ production rate
+           Change the production rate and the price follows. That makes the
+           production rate the number that has to be honest.
+   ------------------------------------------------------------------------ */
+const PRICING_MODES = [
+  { id: 'unit',  label: 'Unit rate (entered)' },
+  { id: 'labor', label: 'From labor billing rate' }
+];
+function laborBillingRate(econ) {
+  econ = econ || (typeof state !== 'undefined' && state.settings ? state.settings.economics : null);
+  const r = econ ? num(econ.laborBillingRate) : 0;
+  return r > 0 ? r : 55;
+}
+/* The rate actually used. Always go through this — never read sellingRate raw. */
+function serviceSellingRate(s, econ) {
+  if (!s || s.pricingMode !== 'labor') return num(s ? s.sellingRate : 0);
+  const b = basis(s.billingBasis);
+  if (b.laborFromQuantity) return round(laborBillingRate(econ), 2);   // hour basis: quantity IS hours
+  const prod = num(s.productionRate);
+  if (prod <= 0) return num(s.sellingRate);                          // no rate to divide by — fall back
+  return round(laborBillingRate(econ) / prod, 4);
+}
+/* Revenue per labor hour a service implies, for comparison against the
+   billing rate. This is the yardstick that showed unit and labor pricing were
+   answering different questions. */
+function impliedHourlyRevenue(s, econ) {
+  if (!s) return null;
+  const b = basis(s.billingBasis);
+  const rate = serviceSellingRate(s, econ);
+  if (b.laborFromQuantity) return round(rate, 2);
+  if (b.id === 'flat') return null;
+  const prod = num(s.productionRate);
+  if (prod <= 0) return null;
+  return round(rate * prod, 2);
+}
+
 /* Quick price-adjustment presets (separate from labor adjustments). */
 const PRICE_PRESETS = [
   { label: 'Difficult Access',    type: 'percent', value: 10 },
@@ -1322,6 +1411,8 @@ function makeProperty(o) {
   return {
     id: o.id || uid('prp'),
     customerId: o.customerId,
+    lat: o.lat === undefined ? null : o.lat,
+    lon: o.lon === undefined ? null : o.lon,
     name: o.name || '',
     address: o.address || '',
     city: o.city || '',
@@ -1352,6 +1443,7 @@ function makeService(o) {
     setupHours: num(o.setupHours),
     cleanupHours: num(o.cleanupHours),
     adjustmentProfile: o.adjustmentProfile || 'general',   // which site conditions apply
+    pricingMode: o.pricingMode || 'unit',                  // unit | labor
     active: o.active !== false,
     externalLinks: o.externalLinks || emptyExternalLinks()
   };
@@ -1385,8 +1477,10 @@ function makeQuoteItem(service, over) {
     description: service.description,
     billingBasis: service.billingBasis,
     unitLabel: service.unitLabel,
-    sellingRate: service.sellingRate,
+    sellingRate: serviceSellingRate(service),
     minimumCharge: service.minimumCharge,
+    pricingMode: service.pricingMode || 'unit',
+    laborBillingRate: laborBillingRate(),   // frozen with the rate, like everything else
     productionRate: service.productionRate,
     productionRateBasis: service.productionRateBasis,
     setupHours: service.setupHours,
@@ -1443,6 +1537,7 @@ function makeQuote(o) {
     status: o.status || 'Draft',
     mode: o.mode || 'single',                // single | options
     internalNotes: o.internalNotes || '',
+    crewNotes: o.crewNotes || '',            // appears on the crew work order only
     customerNotes: o.customerNotes != null ? o.customerNotes : s.quote.defaultCustomerNote,
     assumptions: o.assumptions != null ? o.assumptions : s.quote.defaultAssumptions,
     exclusions: o.exclusions != null ? o.exclusions : s.quote.defaultExclusions,
@@ -1460,6 +1555,8 @@ function makeQuote(o) {
       workDayHours: s.economics.workDayHours,
       laborCostingBasis: s.economics.laborCostingBasis,
       laborRates: clone(s.economics.laborRates),
+      laborBillingRate: s.economics.laborBillingRate,
+      materialMarkup: s.economics.materialMarkup,
       equipmentCostPerHour: s.economics.equipmentCostPerHour,
       travelCostPerMile: s.economics.travelCostPerMile,
       miscAllowance: s.economics.miscAllowance,
@@ -1592,10 +1689,21 @@ function defaultSettings() {
          says out loud that every price it produces is built on sample rates. */
       ratesConfirmed: false,
       laborCostPerHour: 25,                 // legacy mirror of the standard hourly rate
+      /* What labor is CHARGED at, as opposed to what it costs. Services set to
+         "labor" pricing derive their selling rate from this. Production work
+         (washing) is priced by the unit instead — the machine does that work,
+         so the labor hour is not what the customer is buying. */
+      laborBillingRate: 55,
+      /* Labor-priced work bills materials on top. 0 = passed through at cost. */
+      materialMarkup: 0,
       equipmentCostPerHour: 9,
       travelCostPerMile: 0.85,
       miscAllowance: 10,
       targetMargin: 65
+    },
+    /* Optional outside services. Keys live in this browser, never in the file. */
+    integrations: {
+      addressLookup: { provider: 'geoapify', apiKey: '', country: 'us' }
     }
   };
 }
@@ -1610,6 +1718,7 @@ function blankState() {
     services: [],
     materials: [],
     quotes: [],
+    crewDispatches: [],
     quoteDeliveries: [],
     jobActuals: []
   };
@@ -1652,7 +1761,9 @@ function migrateState(st) {
   if (st.settings && st.settings.company && st.settings.company.tagline === 'Professional Exterior Cleaning') {
     st.settings.company.tagline = 'Painting & Cleaning';
   }
+  if (!st.crewDispatches) st.crewDispatches = [];
   (st.quotes || []).forEach(function (q) {
+    if (q.crewNotes === undefined) q.crewNotes = '';
     const snap = q.economicsSnapshot || {};
     if (!snap.laborRates) {
       snap.laborRates = [{
@@ -1794,7 +1905,7 @@ function importData(json) {
    editable in Services & Pricing / Materials / Settings.
    ========================================================================== */
 const SERVICE_SEED = [
-  // code, name, category, basis, rate, min, prodRate, setup, cleanup, unitOverride, description, venue, adjustmentProfile
+  // code, name, category, basis, rate, min, prodRate, setup, cleanup, unitOverride, description, venue, adjustmentProfile, pricingMode
   ['HW-001',    'House / Building Wash',        'Residential', 'sqft',    0.18,  275, 900,  0.4, 0.3, null, 'Low-pressure soft wash of siding, trim, soffits, and eaves to remove organic growth, dirt, and surface staining. Includes rinse of adjacent surfaces and landscape protection.', 'Exterior', 'soft_wash'],
   ['CON-001',   'Driveway',                     'Residential', 'sqft',    0.16,  149, 800,  0.4, 0.3, null, 'Surface cleaning of concrete or paver driveway to remove dirt, algae, and general surface staining, followed by a controlled rinse.', 'Exterior', 'flatwork'],
   ['CON-002',   'Sidewalk',                     'Residential', 'sqft',    0.17,   99, 750,  0.3, 0.2, null, 'Cleaning of walkways and entry paths, including edge detailing where accessible.', 'Exterior', 'flatwork'],
@@ -1814,13 +1925,13 @@ const SERVICE_SEED = [
   ['GOLF-003',  'Golf Pool / Patio',            'Golf',        'sqft',    0.21,  400, 650,  0.6, 0.4, null, 'Cleaning of pool deck and patio hardscape including furniture staging areas.', 'Exterior', 'flatwork'],
   ['GOLF-004',  'Tennis / Pickleball Hardscape','Golf',        'sqft',    0.13,  400, 1200, 0.5, 0.4, null, 'Low-pressure cleaning of court surrounds and accessible hardscape.', 'Exterior', 'flatwork'],
   ['EVENT-001', 'Event Vehicle Wash',           'Events',      'vehicle',34.00,  450, 3.5,  1.0, 0.5, null, 'On-site exterior vehicle wash service staged at the event location, including setup and site protection.', 'Exterior', 'vehicle'],
-  ['PAINT-001', 'Exterior Painting',            'Project',     'sqft',    2.25,  750, 140,  1.0, 0.8, null, 'Exterior surface preparation and application of finish coating to the areas identified in the scope of work, including masking and protection of adjacent surfaces and landscaping.', 'Exterior', 'ext_paint'],
-  ['PAINT-002', 'Interior Painting',            'Project',     'sqft',    2.10,  450, 160,  1.2, 0.8, null, 'Interior painting of the walls, ceilings and trim identified in the scope of work. Includes light surface preparation, patching of minor nail holes and dings, masking, floor and furniture protection, cutting in, and application of finish coats.', 'Interior', 'int_paint'],
-  ['PAINT-003', 'Interior Trim & Doors',        'Project',     'linft',   6.50,  350,  30,  1.0, 0.6, null, 'Preparation and painting of interior trim, baseboards, casings and doors as identified in the scope of work, including light sanding, filling and masking.', 'Interior', 'int_paint'],
-  ['STAIN-001', 'Staining / Sealing',           'Project',     'sqft',    1.35,  450, 220,  0.8, 0.6, null, 'Preparation and application of stain or sealer to the areas identified in the scope of work.', 'Exterior', 'ext_paint'],
-  ['CUSTOM-002','Custom Labor Service',         'Project',     'hour',   85.00,  150, 0,    0.3, 0.2, null, 'Labor service performed as described in the scope of work.', 'Either', 'none'],
+  ['PAINT-001', 'Exterior Painting',            'Project',     'sqft',    2.25,  750, 140,  1.0, 0.8, null, 'Exterior surface preparation and application of finish coating to the areas identified in the scope of work, including masking and protection of adjacent surfaces and landscaping.', 'Exterior', 'ext_paint', 'labor'],
+  ['PAINT-002', 'Interior Painting',            'Project',     'sqft',    2.10,  450, 160,  1.2, 0.8, null, 'Interior painting of the walls, ceilings and trim identified in the scope of work. Includes light surface preparation, patching of minor nail holes and dings, masking, floor and furniture protection, cutting in, and application of finish coats.', 'Interior', 'int_paint', 'labor'],
+  ['PAINT-003', 'Interior Trim & Doors',        'Project',     'linft',   6.50,  350,  30,  1.0, 0.6, null, 'Preparation and painting of interior trim, baseboards, casings and doors as identified in the scope of work, including light sanding, filling and masking.', 'Interior', 'int_paint', 'labor'],
+  ['STAIN-001', 'Staining / Sealing',           'Project',     'sqft',    1.35,  450, 220,  0.8, 0.6, null, 'Preparation and application of stain or sealer to the areas identified in the scope of work.', 'Exterior', 'ext_paint', 'labor'],
+  ['CUSTOM-002','Custom Labor Service',         'Project',     'hour',   85.00,  150, 0,    0.3, 0.2, null, 'Labor service performed as described in the scope of work.', 'Either', 'none', 'labor'],
   ['TRAVEL-001','Mobilization / Travel',        'Other',       'flat',   95.00,    0, 0,    0.5, 0.0, null, 'Mobilization of crew, equipment, and water supply to the property.', 'Either', 'none'],
-  ['CUSTOM-001','Custom Service',               'Other',       'hour',   95.00,  150, 0,    0.3, 0.2, null, 'Service performed as described in the scope of work.', 'Either', 'none']
+  ['CUSTOM-001','Custom Service',               'Other',       'hour',   95.00,  150, 0,    0.3, 0.2, null, 'Service performed as described in the scope of work.', 'Either', 'none', 'labor']
 ];
 
 const MATERIAL_SEED = [
@@ -1848,7 +1959,8 @@ function serviceFromSeed(r) {
     productionRateBasis: r[3] === 'hour' || r[3] === 'flat' ? 'n/a — labor entered directly' : ((r[9] || b.unit) + ' / labor hour'),
     description: r[10],
     venue: r[11] || 'Exterior',
-    adjustmentProfile: r[12] || 'general'
+    adjustmentProfile: r[12] || 'general',
+    pricingMode: r[13] || 'unit'
   });
 }
 function seedCatalog(st) {
@@ -1887,6 +1999,14 @@ function syncCatalog(st) {
     if (s.adjustmentProfile) return;
     const seed = SERVICE_SEED.find(function (r) { return r[0] === s.serviceCode; });
     s.adjustmentProfile = (seed && seed[12]) || 'general';
+  });
+  /* Painting is sold as hours of a person's time, so it is priced from the
+     labor billing rate. Washing stays on its own unit rates. Services the user
+     has already edited keep whatever they were set to. */
+  st.services.forEach(function (s) {
+    if (s.pricingMode) return;
+    const seed = SERVICE_SEED.find(function (r) { return r[0] === s.serviceCode; });
+    s.pricingMode = (seed && seed[13]) || 'unit';
   });
 }
 
@@ -2214,13 +2334,26 @@ function calculateMaterialCost(item) {
   return 0;
 }
 
+/* What a labor-priced line bills: EVERY labor hour the job consumes, charged at
+   the billing rate. Productive work, setup, cleanup and the site-condition
+   adjustments alike — they are all someone's time. Anything less means a
+   vaulted ceiling costs more to do and nothing more to buy.
+   An hour-basis line is the exception: the estimator typed the billable hours,
+   so that is what is billed. */
+function billableLaborHours(item, labor) {
+  if (!labor) return 0;
+  return basis(item.billingBasis).laborFromQuantity ? num(item.quantity) : num(labor.final);
+}
+
 /* Base selling price from the snapshotted rate, floored at the minimum charge. */
-function calculateServiceBasePrice(item) {
+function calculateServiceBasePrice(item, labor) {
   const b = basis(item.billingBasis);
   const rate = num(item.sellingRate);
   const q = num(item.quantity);
   let raw;
-  if (b.id === 'flat') {
+  if (item.pricingMode === 'labor' && labor) {
+    raw = num(item.laborBillingRate || laborBillingRate()) * billableLaborHours(item, labor);
+  } else if (b.id === 'flat') {
     raw = rate * (q > 0 ? q : 1);
   } else {
     raw = rate * q;
@@ -2244,10 +2377,11 @@ function calculatePriceAdjustments(item, basePrice) {
   return { total: round(total, 2), applied: applied };
 }
 
-function calculateRecommendedPrice(item) {
-  const bp = calculateServiceBasePrice(item);
+function calculateRecommendedPrice(item, labor, materialRevenue) {
+  const bp = calculateServiceBasePrice(item, labor);
   const adj = calculatePriceAdjustments(item, bp.base);
-  const recommended = round(Math.max(0, bp.base + adj.total), 2);
+  const matRev = round(num(materialRevenue), 2);
+  const recommended = round(Math.max(0, bp.base + adj.total + matRev), 2);
   const ov = item.priceOverride || {};
   const overridden = !!(ov.enabled && ov.price !== null && ov.price !== '');
   const quoted = overridden ? round(Math.max(0, num(ov.price)), 2) : recommended;
@@ -2259,6 +2393,7 @@ function calculateRecommendedPrice(item) {
     minimum: bp.minimum,
     adjustments: adj.total,
     adjustmentDetail: adj.applied,
+    materialRevenue: matRev,
     recommended: recommended,
     quoted: quoted,
     overridden: overridden,
@@ -2278,12 +2413,20 @@ function calculateItemEconomics(item, econ, ctx) {
   const laborCost = calculateLaborCost(labor.final, rate);
   const materials = calculateMaterialCost(item);
   const equipment = round(labor.elapsed * num(econ.equipmentCostPerHour), 2);
-  const price = calculateRecommendedPrice(item);
+  /* On unit-priced work the material is already inside the unit rate — the soap
+     is part of $0.18 a square foot. On labor-priced work the billing rate covers
+     labor and overhead only, so materials are passed through to the customer. */
+  const materialsBilled = item.pricingMode === 'labor';
+  const markup = num(econ ? econ.materialMarkup : 0);
+  const materialRevenue = materialsBilled ? round(materials * (1 + markup / 100), 2) : 0;
+  const price = calculateRecommendedPrice(item, labor, materialRevenue);
   const directCost = round(laborCost + materials + equipment, 2);
   return {
     labor: labor,
     laborCost: laborCost,
     materials: materials,
+    materialsBilled: materialsBilled,
+    materialRevenue: materialRevenue,
     equipment: equipment,
     directCost: directCost,
     price: price,
@@ -2436,9 +2579,9 @@ function needsFollowUp(quote) {
     (Date.now() - new Date(quote.sentAt).getTime()) > 5 * 86400000 && !isExpired(quote);
 }
 function customerLabel(c) {
-  if (!c) return 'Unknown customer';
+  if (!c) return 'Unknown client';
   if (c.entityType === 'Company' || c.companyName) return c.companyName || 'Unnamed company';
-  return ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unnamed customer';
+  return ((c.firstName || '') + ' ' + (c.lastName || '')).trim() || 'Unnamed client';
 }
 function contactLabel(c) {
   if (!c) return '';
@@ -2485,6 +2628,13 @@ function dashboardMetrics() {
     winRate: decided ? round(accepted.length / decided * 100, 0) : null,
     avgQuote: avg(allValues),
     avgAccepted: avg(acceptedValues),
+    declinedCount: declined.length,
+    acceptedValue: acceptedValues.reduce(function (a, b) { return a + b; }, 0),
+    /* Operational: work that is WON but has no actuals recorded against it —
+       i.e. still to be scheduled or still in progress. */
+    toSchedule: accepted.filter(function (q) { return !actualsFor(q.id).length; })
+      .sort(function (a, b) { return new Date(a.acceptedAt || 0) - new Date(b.acceptedAt || 0); }),
+    drafts: quotes.filter(function (q) { return q.status === 'Draft'; }),
     followUps: quotes.filter(needsFollowUp),
     expiring: quotes.filter(function (q) {
       const d = daysBetween(todayISO(), q.validUntil);
@@ -2492,6 +2642,15 @@ function dashboardMetrics() {
     }),
     recent: state.quotes.slice().sort(function (a, b) { return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt); }).slice(0, 8)
   };
+}
+
+/* Man-hours of work sitting on the books. The operational counterpart to a
+   pipeline value: capacity, not currency. */
+function bookedLaborHours(quotes) {
+  return round((quotes || []).reduce(function (sum, q) {
+    const opt = quotePrimaryOption(q);
+    return sum + ((opt && opt.items) || []).reduce(function (s, it) { return s + calculateTotalLabor(it).final; }, 0);
+  }, 0), 1);
 }
 /* ==========================================================================
    RENDERING — shell, router, primitives
@@ -2713,13 +2872,14 @@ function goBack() {
 
 const VIEWS = {};
 const VIEW_META = {
-  dashboard:  { title: 'Dashboard',          nav: 'dashboard' },
+  dashboard:  { title: 'Home',               nav: 'dashboard' },
   quotes:     { title: 'Quotes',             nav: 'quotes' },
+  performance:{ title: 'Performance',        nav: 'performance' },
   quote:      { title: 'Quote',              nav: 'quotes', back: true },
   editor:     { title: 'Quote Editor',       nav: 'quotes', back: true, editor: true },
   proposal:   { title: 'Proposal Preview',   nav: 'quotes', back: true },
-  customers:  { title: 'Customers',          nav: 'customers' },
-  customer:   { title: 'Customer',           nav: 'customers', back: true },
+  customers:  { title: 'Clients',            nav: 'customers' },
+  customer:   { title: 'Client',             nav: 'customers', back: true },
   services:   { title: 'Services & Pricing', nav: 'services' },
   materials:  { title: 'Materials',          nav: 'materials' },
   settings:   { title: 'Settings',           nav: 'settings' },
@@ -2759,12 +2919,13 @@ function openMoreSheet() {
   openModal({
     title: 'More',
     body: '<div class="rows">' +
-      [['services', 'Services & Pricing', 'Rates, production rates, labor assumptions'],
+      [['performance', 'Performance', 'Win rate, averages, pipeline value, estimate vs actual'],
+       ['services', 'Services & Pricing', 'Rates, production rates, labor assumptions'],
        ['materials', 'Materials', 'Simple material costs'],
        ['settings', 'Settings', 'Company, quote defaults, economics, data backup']]
       .map(function (r) {
         return '<button class="row" data-act="moreNav" data-to="' + r[0] + '">' +
-          '<span class="avatar">' + icon(r[0] === 'settings' ? 'gear' : (r[0] === 'materials' ? 'box' : 'tag'), 18) + '</span>' +
+          '<span class="avatar">' + icon(r[0] === 'settings' ? 'gear' : (r[0] === 'materials' ? 'box' : (r[0] === 'performance' ? 'chart' : 'tag')), 18) + '</span>' +
           '<span class="rmain"><span class="rtitle">' + r[1] + '</span><span class="rsub">' + r[2] + '</span></span>' +
           '<span class="muted">' + icon('chevronRight', 18) + '</span></button>';
       }).join('') + '</div>'
@@ -2798,9 +2959,14 @@ function quoteRow(q) {
   '</button>';
 }
 
+/* ==========================================================================
+   HOME — operational
+   What needs doing, not how the business is performing. Money lives on the
+   Performance screen; this page answers "what do I have to act on today".
+   ========================================================================== */
 VIEWS.dashboard = function () {
   const m = dashboardMetrics();
-  let html = '<div class="page-head"><h1>Dashboard</h1><div class="sub">' + fmtDate(todayISO()) + ' · ' + esc(state.settings.company.name) + '</div></div>';
+  let html = '<div class="page-head"><h1>Home</h1><div class="sub">' + fmtDate(todayISO()) + ' · ' + esc(state.settings.company.name) + '</div></div>';
 
   if (!state.settings.economics.ratesConfirmed) {
     html += '<div class="notice warn" id="ratesBanner" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">' +
@@ -2819,25 +2985,34 @@ VIEWS.dashboard = function () {
       '<button class="btn sm" data-act="exportData">' + icon('download', 15) + ' Back up now</button></div>';
   }
 
+  /* Counts, not currency. Each one is a tap through to the matching list, so a
+     number is never a dead end. */
+  const bookedHours = bookedLaborHours(m.toSchedule);
   html += '<div class="stats">' +
-    statCard('Open Quotes', String(m.openCount), 'Draft, ready and sent', true) +
-    statCard('Open Quote Value', money0(m.openValue), 'Recommended totals') +
-    statCard('Win Rate', m.winRate == null ? '—' : m.winRate + '%', m.winRate == null ? 'No decisions yet' : 'Accepted vs decided') +
-    statCard('Accepted', String(m.acceptedCount), 'All time') +
-  '</div>';
-  html += '<div class="stats mt-12">' +
-    statCard('Average Quote', money0(m.avgQuote), 'All quotes with scope') +
-    statCard('Average Accepted Ticket', money0(m.avgAccepted), 'Accepted quotes only') +
-    statCard('Needs Follow-Up', String(m.followUps.length), 'Sent 5+ days ago') +
-    statCard('Expiring Soon', String(m.expiring.length), 'Within 7 days') +
+    statTap('Open Quotes', String(m.openCount), 'Draft, ready and sent', 'Active', true) +
+    statTap('Needs Follow-Up', String(m.followUps.length), 'Sent 5+ days ago', 'Sent') +
+    statTap('Expiring Soon', String(m.expiring.length), 'Within 7 days', 'Sent') +
+    statTap('Won — To Schedule', String(m.toSchedule.length),
+      bookedHours ? hrs(bookedHours, 1) + ' man-hours booked' : 'No actuals recorded yet', 'Accepted') +
   '</div>';
 
   html += '<div class="btn-row mt-16"><button class="btn primary" data-act="newQuote">' + icon('plus', 18) + ' New Quote</button>' +
-    '<button class="btn" data-act="nav" data-nav="quotes">' + icon('doc', 18) + ' All Quotes</button></div>';
+    '<button class="btn" data-act="nav" data-nav="quotes">' + icon('doc', 18) + ' All Quotes</button>' +
+    '<button class="btn" data-act="nav" data-nav="performance">' + icon('chart', 18) + ' Performance</button></div>';
 
   if (m.followUps.length) {
-    html += '<div class="section-title">Quotes needing follow-up</div>' +
+    html += '<div class="section-title">Needs follow-up</div>' +
       '<div class="card flush"><div class="rows">' + m.followUps.map(quoteRow).join('') + '</div></div>';
+  }
+
+  if (m.expiring.length) {
+    html += '<div class="section-title">Expiring within 7 days</div>' +
+      '<div class="card flush"><div class="rows">' + m.expiring.map(quoteRow).join('') + '</div></div>';
+  }
+
+  if (m.toSchedule.length) {
+    html += '<div class="section-title">Won — ready to schedule</div>' +
+      '<div class="card flush"><div class="rows">' + m.toSchedule.map(quoteRow).join('') + '</div></div>';
   }
 
   if (m.acceptedRecent.length) {
@@ -2845,16 +3020,95 @@ VIEWS.dashboard = function () {
       '<div class="card flush"><div class="rows">' + m.acceptedRecent.map(quoteRow).join('') + '</div></div>';
   }
 
-  html += '<div class="section-title">Recent quotes</div>';
-  if (!m.recent.length) {
-    html += '<div class="card"><div class="empty"><div class="ico">' + icon('doc', 24) + '</div><h3>No quotes yet</h3><p class="small">Start your first estimate from the New Quote button.</p></div></div>';
-  } else {
-    html += '<div class="card flush"><div class="rows">' + m.recent.map(quoteRow).join('') + '</div></div>';
+  if (!m.followUps.length && !m.expiring.length && !m.toSchedule.length && !m.acceptedRecent.length) {
+    html += '<div class="card"><div class="empty"><div class="ico">' + icon('doc', 24) + '</div>' +
+      '<h3>' + (state.quotes.length ? 'Nothing needs you right now' : 'No quotes yet') + '</h3>' +
+      '<p class="small">' + (state.quotes.length
+        ? 'No follow-ups due, nothing expiring, no won work waiting. Every quote is in the Quotes tab.'
+        : 'Start your first estimate from the New Quote button.') + '</p>' +
+      '<div class="btn-row mt-12" style="justify-content:center"><button class="btn primary" data-act="newQuote">' +
+      icon('plus', 18) + ' New Quote</button></div></div></div>';
   }
   return html;
 };
+
+/* A stat that navigates to the quotes list already filtered. */
+function statTap(k, v, n, filter, accent) {
+  return '<button class="stat statlink' + (accent ? ' accent' : '') + '" data-act="goQuotes" data-f="' + esc(filter) + '">' +
+    '<div class="k">' + esc(k) + '</div><div class="v">' + v + '</div>' +
+    (n ? '<div class="n">' + esc(n) + '</div>' : '') + '</button>';
+}
+ACTIONS.goQuotes = function (d) {
+  quoteFilter = d.f || 'Active';
+  historyStack.length = 0;
+  go('quotes', {}, true);
+};
+
 VIEWS.dashboard_actions = function () {
   return '<button class="topbar-btn" data-act="newQuote">New Quote</button>';
+};
+
+/* ==========================================================================
+   PERFORMANCE — the financial view Home no longer carries
+   ========================================================================== */
+VIEWS.performance = function () {
+  const m = dashboardMetrics();
+  const decided = m.acceptedCount + m.declinedCount;
+  let html = '<div class="page-head"><h1>Performance</h1>' +
+    '<div class="sub">How the business is doing. <span class="internal-flag">' + icon('alert', 12) + ' Internal</span></div></div>';
+
+  if (!state.settings.economics.ratesConfirmed) {
+    html += '<div class="notice warn">Every figure here rests on rates that are still sample assumptions. Treat the shape as real and the numbers as placeholders until the rates are confirmed in Settings.</div>';
+  }
+
+  html += '<div class="section-title">Pipeline</div>';
+  html += '<div class="stats">' +
+    statCard('Open Quote Value', money0(m.openValue), String(m.openCount) + ' open quote' + (m.openCount === 1 ? '' : 's'), true) +
+    statCard('Average Quote', money0(m.avgQuote), 'All quotes with scope') +
+  '</div>';
+
+  html += '<div class="section-title">Won and lost</div>';
+  html += '<div class="stats">' +
+    statCard('Win Rate', m.winRate == null ? '—' : m.winRate + '%', decided ? 'Accepted vs ' + decided + ' decided' : 'No decisions yet') +
+    statCard('Accepted', String(m.acceptedCount), 'All time') +
+    statCard('Declined', String(m.declinedCount), 'All time') +
+    statCard('Accepted Value', money0(m.acceptedValue), 'All time') +
+  '</div>';
+  html += '<div class="stats mt-12">' +
+    statCard('Average Accepted Ticket', money0(m.avgAccepted), 'Accepted quotes only') +
+    statCard('Booked Labor', hrs(bookedLaborHours(m.toSchedule), 1) + ' hrs', 'Won work with no actuals yet') +
+  '</div>';
+
+  /* Estimate vs actual is the number that changes how jobs get priced. */
+  const withActuals = state.quotes.filter(function (q) { return actualsFor(q.id).length; });
+  html += '<div class="section-title">Estimate vs actual</div>';
+  if (!withActuals.length) {
+    html += '<div class="card"><div class="empty"><h3>No actuals recorded yet</h3>' +
+      '<p class="small">Record what a job really took from its quote record. Once a few are in, this compares estimated hours against real ones — the fastest way to find a production rate that is wrong.</p></div></div>';
+  } else {
+    let estH = 0, actH = 0;
+    withActuals.forEach(function (q) {
+      const a = actualsFor(q.id)[0];
+      if (!a) return;
+      const opt = byId(q.options, a.optionId) || quotePrimaryOption(q);
+      estH += calculateOptionEconomics(q, opt || { items: [] }).laborHours;
+      actH += num(a.actualLaborHours);
+    });
+    estH = round(estH, 1); actH = round(actH, 1);
+    const diff = round(actH - estH, 1);
+    html += '<div class="stats">' +
+      statCard('Jobs Measured', String(withActuals.length), 'With actuals recorded') +
+      statCard('Estimated Hours', hrs(estH, 1), 'Across those jobs') +
+      statCard('Actual Hours', hrs(actH, 1), 'Across those jobs') +
+      statCard('Difference', (diff > 0 ? '+' : '') + hrs(diff, 1), diff > 0 ? 'Jobs ran long' : (diff < 0 ? 'Jobs ran short' : 'Dead on')) +
+    '</div>';
+    html += '<div class="card flush mt-12"><div class="rows">' + withActuals.slice(0, 8).map(quoteRow).join('') + '</div></div>';
+  }
+
+  html += '<div class="btn-row mt-16">' +
+    '<button class="btn" data-act="nav" data-nav="quotes">' + icon('doc', 18) + ' All Quotes</button>' +
+    '<button class="btn" data-act="nav" data-nav="settings">' + icon('gear', 18) + ' Rates &amp; assumptions</button></div>';
+  return html;
 };
 
 ACTIONS.openQuote = function (d) { go('quote', { id: d.id }); };
@@ -2897,7 +3151,7 @@ VIEWS.quotes_actions = function () {
 ACTIONS.quoteFilter = function (d) { quoteFilter = d.f; render(); };
 /* ==========================================================================
    QUOTE WORKFLOW — the field estimating flow
-   Customer -> Property -> Scope -> Review
+   Client -> Property -> Scope -> Labor -> Review
    ========================================================================== */
 
 let editor = { quoteId: null, step: 1, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
@@ -2914,14 +3168,14 @@ let pendingQuote = null;      // a new quote that has not been persisted yet
 
 function startNewQuote() {
   pendingQuote = makeQuote({});
-  editor = { quoteId: pendingQuote.id, step: 1, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
+  editor = { quoteId: pendingQuote.id, step: STEP_CLIENT, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
   go('editor', { id: pendingQuote.id });
 }
 function editQuote(id) {
   const q = byId(state.quotes, id);
   if (!q) return;
   loadQuotePhotos(q).then(function () { if (route.name === 'editor') render(); });
-  editor = { quoteId: id, step: quoteItemCount(q) ? 3 : 1, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
+  editor = { quoteId: id, step: quoteItemCount(q) ? STEP_SCOPE : STEP_CLIENT, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
   go('editor', { id: id });
 }
 function currentQuote() {
@@ -2950,7 +3204,12 @@ function currentOption(q) {
 /* ==========================================================================
    EDITOR SHELL
    ========================================================================== */
-const STEP_LABELS = ['Customer', 'Property', 'Scope', 'Review'];
+/* Client and property are one step with two phases: pick who, then pick where.
+   They are always answered together at the door, so splitting them across two
+   screens only added a tap. */
+const STEP_LABELS = ['Client', 'Scope', 'Labor', 'Review'];
+const STEP_COUNT = STEP_LABELS.length;
+const STEP_CLIENT = 1, STEP_SCOPE = 2, STEP_LABOR = 3, STEP_REVIEW = 4;
 
 VIEWS.editor = function () {
   const q = currentQuote();
@@ -2961,12 +3220,13 @@ VIEWS.editor = function () {
   body += '<div class="stepper no-print">' + STEP_LABELS.map(function (l, i) {
     const n = i + 1;
     const cls = editor.step === n ? 'on' : (editor.step > n ? 'done' : '');
-    return '<button class="st ' + cls + '" data-act="goStep" data-n="' + n + '">' + n + '. ' + l + '</button>';
+    return '<button class="st ' + cls + '" data-act="goStep" data-n="' + n + '" aria-current="' + (editor.step === n) + '">' +
+      '<span class="st-n">' + n + '. </span>' + esc(l) + '</button>';
   }).join('') + '</div>';
 
-  if (editor.step === 1) body += renderStepCustomer(q);
-  else if (editor.step === 2) body += renderStepProperty(q);
-  else if (editor.step === 3) body += renderStepScope(q);
+  if (editor.step === STEP_CLIENT) body += renderStepCustomer(q);
+  else if (editor.step === STEP_SCOPE) body += renderStepScope(q);
+  else if (editor.step === STEP_LABOR) body += renderStepLabor(q);
   else body += renderStepReview(q);
 
   const econ = summaryEconomics(q);
@@ -2980,14 +3240,24 @@ VIEWS.editor_actions = function () {
   return '<button class="topbar-btn" data-act="saveDraft">Save Draft</button>';
 };
 
+/* One place decides what the forward button says, so the bar, the desktop card
+   and the in-page button can never disagree. */
+function stepNextLabel(step) {
+  if (step === STEP_CLIENT) return 'Scope';
+  if (step === STEP_SCOPE) return 'Crew & Labor';
+  if (step === STEP_LABOR) return 'Review Quote';
+  if (step >= STEP_REVIEW) return 'Save & Finish';
+  return 'Next';
+}
+
 function summaryEconomics(q) {
   const opt = currentOption(q);
   return calculateOptionEconomics(q, opt || { items: [] });
 }
 
 function renderSummaryBar(q, e) {
-  const next = editor.step < 3 ? 'Next' : (editor.step === 3 ? 'Review Quote' : 'Save & Finish');
-  const act = editor.step < 4 ? 'nextStep' : 'finishQuote';
+  const next = stepNextLabel(editor.step);
+  const act = editor.step < STEP_REVIEW ? 'nextStep' : 'finishQuote';
   return '<div class="qs-left">' +
       '<div class="qs-price" id="qsumPrice">' + money0(e.revenue) + '</div>' +
       '<div class="qs-meta" id="qsumMeta">' + hrs(e.laborHours) + ' man-hrs · ' + (e.paidDays ? round(e.paidDays, 2) + 'd crew · ' : '') + 'cost ' + money0(e.directCost) + ' · ' + pct(e.margin, 0) + ' margin</div>' +
@@ -3004,8 +3274,8 @@ function renderSummaryCard(q, e) {
       '<div id="qsumDeskBody">' + summaryKVs(e) + '</div>' +
       '<div class="mt-12"><span class="badge ' + ms.cls + '">' + ms.label + ' · target ' + pct(e.targetMargin, 0) + '</span></div>' +
       '<div class="btn-row stack mt-12">' +
-        (editor.step < 4
-          ? '<button class="btn" data-act="' + (editor.step < 3 ? 'nextStep' : 'nextStep') + '" style="background:#fff;color:var(--brand-900);border-color:#fff">' + (editor.step < 3 ? 'Next' : 'Review Quote') + '</button>'
+        (editor.step < STEP_REVIEW
+          ? '<button class="btn" data-act="nextStep" style="background:#fff;color:var(--brand-900);border-color:#fff">' + esc(stepNextLabel(editor.step)) + '</button>'
           : '<button class="btn" data-act="finishQuote" style="background:#fff;color:var(--brand-900);border-color:#fff">Save &amp; Finish</button>') +
         '<button class="btn ghost" data-act="saveDraft" style="color:#c3d7e1">Save Draft</button>' +
       '</div>' +
@@ -3049,21 +3319,21 @@ ACTIONS.prevStep = function () {
 };
 ACTIONS.nextStep = function () {
   if (!validateStep(editor.step)) return;
-  editor.step = Math.min(4, editor.step + 1);
+  editor.step = Math.min(STEP_COUNT, editor.step + 1);
   render();
   window.scrollTo(0, 0);
 };
 ACTIONS.saveDraft = function () {
   const q = currentQuote();
   if (!q) return;
-  if (!q.customerId) { toast('Select a customer first', 'bad'); editor.step = 1; render(); return; }
+  if (!q.customerId) { toast('Select a client first', 'bad'); editor.step = STEP_CLIENT; render(); return; }
   persistQuote(q);
   toast('Draft saved as ' + q.quoteNumber, 'good');
   render();
 };
 ACTIONS.finishQuote = function () {
   const q = currentQuote();
-  if (!validateStep(3)) return;
+  if (!validateStep(STEP_SCOPE)) return;
   if (q.status === 'Draft') q.status = 'Ready';
   persistQuote(q);
   toast('Quote ' + q.quoteNumber + ' saved', 'good');
@@ -3074,23 +3344,27 @@ ACTIONS.finishQuote = function () {
 function validateStep(step) {
   const q = currentQuote();
   if (!q) return false;
-  if (step >= 1 && !q.customerId) { toast('Choose or create a customer to continue', 'bad'); editor.step = 1; render(); return false; }
-  if (step >= 2 && !q.propertyId) { toast('Choose or create a property to continue', 'bad'); editor.step = 2; render(); return false; }
-  if (step >= 3) {
+  if (step >= STEP_CLIENT && !q.customerId) { toast('Choose or create a client to continue', 'bad'); editor.step = STEP_CLIENT; render(); return false; }
+  if (step >= STEP_CLIENT && !q.propertyId) { toast('Choose the property this work is at', 'bad'); editor.step = STEP_CLIENT; render(); return false; }
+  if (step >= STEP_SCOPE) {
     const opt = currentOption(q);
-    if (!opt || !opt.items.length) { toast('Add at least one service to continue', 'bad'); editor.step = 3; render(); return false; }
+    if (!opt || !opt.items.length) { toast('Add at least one service to continue', 'bad'); editor.step = STEP_SCOPE; render(); return false; }
     const bad = opt.items.filter(function (it) { return num(it.quantity) <= 0 && basis(it.billingBasis).id !== 'flat'; });
-    if (bad.length) { toast('Enter a quantity for ' + bad[0].name, 'bad'); editor.step = 3; render(); return false; }
+    if (bad.length) { toast('Enter a quantity for ' + bad[0].name, 'bad'); editor.step = STEP_SCOPE; render(); return false; }
   }
   return true;
 }
 
 /* ==========================================================================
-   STEP 1 — CUSTOMER
+   STEP 1 — CLIENT & PROPERTY
+   Two phases on one step. Phase A: who is this for. Phase B: which of their
+   properties. Picking a client switches phases in place — no page change, no
+   extra tap, and the stepper never moves.
    ========================================================================== */
 function renderStepCustomer(q) {
   const c = byId(state.customers, q.customerId);
-  let html = '<div class="page-head"><h1>Customer</h1><div class="sub">Search by person, company, phone or email — or add someone new.</div></div>';
+  let html = '<div class="page-head"><h1>Client &amp; Property</h1><div class="sub">' +
+    (c ? 'Where is the work being performed?' : 'Search by person, company, phone or email — or add someone new.') + '</div></div>';
 
   if (c) {
     const primaryCt = contactsFor(c.id).filter(function (x) { return x.isPrimary; })[0] || contactsFor(c.id)[0];
@@ -3123,7 +3397,14 @@ function renderStepCustomer(q) {
       }).join('') + '</div>';
     }
     html += '</div>';
-    html += '<div class="btn-row"><button class="btn primary" data-act="nextStep">Continue to Property</button></div>';
+
+    /* ---- phase B: the property, for this client only ---- */
+    html += renderPropertyPhase(q, c);
+
+    const picked = byId(state.properties, q.propertyId);
+    html += '<div class="btn-row mt-16">' +
+      (picked ? '<button class="btn primary" data-act="nextStep">Continue to Scope</button>' : '') +
+    '</div>';
     return html;
   }
 
@@ -3131,7 +3412,7 @@ function renderStepCustomer(q) {
     '<div class="field search-wrap">' + icon('search', 18) +
       '<input type="text" id="custSearch" placeholder="Search name, company, phone or email" data-oninput="custSearch" value="' + esc(editor.search) + '" autocomplete="off">' +
     '</div>' +
-    '<button class="btn primary block" data-act="newCustomer">' + icon('plus', 18) + ' New Customer</button>' +
+    '<button class="btn primary block" data-act="newCustomer">' + icon('plus', 18) + ' New Client</button>' +
   '</div>';
   html += '<div id="custResults">' + customerResultsHTML(editor.search) + '</div>';
   return html;
@@ -3152,7 +3433,7 @@ function customerResultsHTML(term) {
   list = list.sort(function (a, b) { return customerLabel(a).localeCompare(customerLabel(b)); });
   if (!list.length) {
     return '<div class="card"><div class="empty"><div class="ico">' + icon('user', 24) + '</div>' +
-      '<h3>No matches</h3><p class="small">Create a new customer to continue.</p></div></div>';
+      '<h3>No matches</h3><p class="small">Create a new client to continue.</p></div></div>';
   }
   return '<div class="card flush"><div class="rows">' + list.map(function (c) {
     const props = propertiesFor(c.id).length;
@@ -3209,12 +3490,12 @@ ACTIONS.newCustomer = function () {
     if (made && made.property) {
       q.propertyId = made.property.id;
       persistQuote(q);
-      editor.step = 3;                  // address captured — skip straight to scope
+      editor.step = STEP_SCOPE;         // address captured — skip straight to scope
       render();
-      toast('Customer and property created', 'good');
+      toast('Client and property created', 'good');
       return;
     }
-    toast('Customer created', 'good');
+    toast('Client created', 'good');
   }, { withProperty: true });
 };
 ACTIONS.addContact = function (d) {
@@ -3227,39 +3508,44 @@ ACTIONS.addContact = function (d) {
   });
 };
 
-/* ==========================================================================
-   STEP 2 — PROPERTY
-   ========================================================================== */
-function renderStepProperty(q) {
-  const props = propertiesFor(q.customerId);
-  let html = '<div class="page-head"><h1>Property</h1><div class="sub">Where is the work being performed?</div></div>';
-  html += '<div class="card">' +
-    '<button class="btn primary block" data-act="newProperty">' + icon('plus', 18) + ' New Property</button></div>';
-  if (!props.length) {
-    html += '<div class="card"><div class="empty"><div class="ico">' + icon('home', 24) + '</div><h3>No properties yet</h3>' +
-      '<p class="small">Add the property you are standing at.</p></div></div>';
-  } else {
-    html += '<div class="card flush"><div class="rows">' + props.map(function (p) {
-      const on = q.propertyId === p.id;
-      return '<button class="row" data-act="pickProperty" data-id="' + p.id + '">' +
-        '<span class="avatar">' + icon('home', 18) + '</span>' +
-        '<span class="rmain"><span class="rtitle">' + esc(propertyLabel(p)) + '</span>' +
-        '<span class="rsub">' + esc(propertyAddress(p) || p.propertyType) + '</span></span>' +
-        '<span class="rside">' + (on ? '<span class="badge good">' + icon('check', 12) + ' Selected</span>' : '<span class="badge">Select</span>') + '</span>' +
-      '</button>';
-    }).join('') + '</div></div>';
-  }
+/* Phase B of step 1 — only ever this client's properties. */
+function renderPropertyPhase(q, c) {
+  const props = propertiesFor(c.id);
   const p = byId(state.properties, q.propertyId);
+
+  let html = '<div class="section-title">Property</div>';
+
+  if (!props.length) {
+    html += '<div class="card"><div class="empty"><div class="ico">' + icon('home', 24) + '</div>' +
+      '<h3>No property yet for ' + esc(customerLabel(c)) + '</h3>' +
+      '<p class="small">Add the property you are standing at.</p>' +
+      '<div class="btn-row mt-12" style="justify-content:center">' +
+      '<button class="btn primary" data-act="newProperty">' + icon('plus', 18) + ' New Property</button></div></div></div>';
+    return html;
+  }
+
+  html += '<div class="card flush"><div class="rows">' + props.map(function (pr) {
+    const on = q.propertyId === pr.id;
+    return '<button class="row' + (on ? ' on' : '') + '" data-act="pickProperty" data-id="' + pr.id + '">' +
+      '<span class="avatar">' + icon('home', 18) + '</span>' +
+      '<span class="rmain"><span class="rtitle">' + esc(propertyLabel(pr)) + '</span>' +
+      '<span class="rsub">' + esc(propertyAddress(pr) || pr.propertyType) + '</span></span>' +
+      '<span class="rside">' + (on ? '<span class="badge good">' + icon('check', 12) + ' Selected</span>' : '<span class="badge">Select</span>') + '</span>' +
+    '</button>';
+  }).join('') + '</div></div>';
+
+  html += '<div class="card tight"><button class="btn block" data-act="newProperty">' +
+    icon('plus', 18) + ' New Property for ' + esc(customerLabel(c)) + '</button></div>';
+
   if (p) {
     html += '<div class="card"><div class="card-head"><h3>' + esc(propertyLabel(p)) + '</h3>' +
       '<button class="btn sm" data-act="editProperty" data-id="' + p.id + '">Edit</button></div>' +
+      (propertyAddress(p) ? '<div class="kv"><span class="k">Address</span><span class="v" style="max-width:62%">' + esc(propertyAddress(p)) + '</span></div>' : '') +
       '<div class="kv"><span class="k">Type</span><span class="v">' + esc(p.propertyType) + '</span></div>' +
       '<div class="kv"><span class="k">Water on site</span><span class="v">' + esc(p.waterAvailable) + '</span></div>' +
       (p.accessNotes ? '<div class="kv"><span class="k">Access</span><span class="v" style="max-width:60%">' + esc(p.accessNotes) + '</span></div>' : '') +
     '</div>';
   }
-  html += '<div class="btn-row mt-16"><button class="btn" data-act="prevStep">' + icon('back', 16) + ' Back</button>' +
-    (p ? '<button class="btn primary" data-act="nextStep">Continue to Scope</button>' : '') + '</div>';
   return html;
 }
 ACTIONS.pickProperty = function (d) {
@@ -3383,7 +3669,7 @@ function refreshCrewCard() {
 
 function renderStepScope(q) {
   const opt = currentOption(q);
-  let html = '<div class="page-head"><h1>Scope</h1><div class="sub">Tap a service, enter the measurement, adjust for site conditions.</div></div>';
+  let html = '<div class="page-head"><h1>Scope</h1><div class="sub">Tap a service, enter the measurement, adjust for site conditions. Crew and labor come next.</div></div>';
 
   html += '<div class="card tight"><div class="lbl">Quote format</div><div class="seg">' +
     '<button class="' + (q.mode === 'single' ? 'on' : '') + '" data-act="setMode" data-m="single">Single Quote</button>' +
@@ -3391,7 +3677,6 @@ function renderStepScope(q) {
   '</div></div>';
 
   html += renderOptionTabs(q);
-  html += '<div id="crewCard">' + renderCrewCard(q) + '</div>';
 
   html += '<div class="section-title">Scope of work' + (q.mode === 'options' ? ' — ' + esc(opt.name) : '') + '</div>';
   if (!opt.items.length) {
@@ -3406,6 +3691,61 @@ function renderStepScope(q) {
   html += renderCatalog(q);
   html += '<div class="btn-row mt-16">' +
     '<button class="btn" data-act="prevStep">' + icon('back', 16) + ' Back</button>' +
+    '<button class="btn primary" data-act="nextStep">Crew &amp; Labor</button>' +
+  '</div>';
+  return html;
+}
+
+/* ==========================================================================
+   STEP 4 — LABOR
+   Everything about who is on site and what their time costs, away from the
+   measuring. Scope answers "what are we doing"; this answers "who does it and
+   how long does it take".
+   ========================================================================== */
+function renderStepLabor(q) {
+  const e = summaryEconomics(q);
+  const opt = currentOption(q);
+  let html = '<div class="page-head"><h1>Crew &amp; Labor</h1><div class="sub">Who is on site, how their time is costed, and what the scope adds up to.</div></div>';
+
+  html += '<div id="crewCard">' + renderCrewCard(q) + '</div>';
+
+  /* Where the hours actually go — the line-by-line view the crew card totals. */
+  const items = (opt && opt.items) || [];
+  if (items.length) {
+    const ctx = optionCtx(q, opt);
+    html += '<div class="card flush"><div class="card-head" style="padding:14px 16px 0"><h3>Labor by line</h3>' +
+      '<span class="internal-flag">' + icon('alert', 12) + ' Internal</span></div>' +
+      '<div class="tablewrap"><table class="data"><thead><tr>' +
+      '<th>Service</th><th class="num">Man-hrs</th><th class="num">Labor cost</th></tr></thead><tbody>' +
+      items.map(function (it) {
+        const c = calculateItemEconomics(it, q.economicsSnapshot, ctx);
+        return '<tr><td><span class="strong">' + esc(it.name) + '</span>' +
+          (c.labor.overridden ? ' <span class="badge warn">override</span>' : '') + '</td>' +
+          '<td class="num">' + hrs(c.labor.final, 2) + '</td>' +
+          '<td class="num">' + money(c.laborCost) + '</td></tr>';
+      }).join('') +
+      '<tr><td><span class="strong">Total</span></td>' +
+      '<td class="num"><span class="strong">' + hrs(e.laborHours, 2) + '</span></td>' +
+      '<td class="num"><span class="strong">' + money(e.laborCost) + '</span></td></tr>' +
+      '</tbody></table></div></div>';
+  } else {
+    html += '<div class="card"><div class="empty"><h3>No services yet</h3>' +
+      '<p class="small">Add services on the Scope step and their labor appears here.</p></div></div>';
+  }
+
+  /* Getting there is labor too, so travel lives with it rather than on Review. */
+  html += '<div class="card"><div class="card-head"><h3>Travel &amp; mobilization</h3></div>' +
+    '<div class="grid2">' +
+      '<div class="field"><label for="qMiles">Travel distance (miles, round trip)</label>' +
+        '<input type="number" inputmode="decimal" step="any" min="0" id="qMiles" value="' + esc(q.travelMiles) + '" data-oninput="quoteMiles"></div>' +
+      '<div class="field"><label for="qMob">Additional mobilization cost</label>' +
+        '<input type="number" inputmode="decimal" step="any" min="0" id="qMob" value="' + esc(q.mobilizationFlat) + '" data-oninput="quoteMob"></div>' +
+    '</div>' +
+    '<div class="hint">Travel cost uses ' + money(q.economicsSnapshot.travelCostPerMile) + '/mile from the economics assumptions saved with this quote.</div>' +
+  '</div>';
+
+  html += '<div class="btn-row mt-16">' +
+    '<button class="btn" data-act="prevStep">' + icon('back', 16) + ' Back to scope</button>' +
     '<button class="btn primary" data-act="nextStep">Review Quote</button>' +
   '</div>';
   return html;
@@ -3436,8 +3776,9 @@ function renderCatalog(q) {
     '<div class="svc-grid">' + list.map(function (s) {
       const b = basis(s.billingBasis);
       const added = usedCodes.indexOf(s.serviceCode) >= 0;
-      const rate = b.id === 'flat' ? money(s.sellingRate) + ' flat' :
-        (b.id === 'hour' ? money(s.sellingRate) + ' / hour' : money(s.sellingRate) + ' / ' + s.unitLabel);
+      const sr = serviceSellingRate(s);
+      const rate = b.id === 'flat' ? money(sr) + ' flat' :
+        (b.id === 'hour' ? money(sr) + ' / hour' : money(sr) + ' / ' + s.unitLabel);
       return '<button class="svc-card' + (added ? ' added' : '') + '" data-act="addService" data-id="' + s.id + '">' +
         '<span class="sc-code">' + esc(s.serviceCode) + '</span>' +
         '<span class="sc-name">' + esc(s.name) + '</span>' +
@@ -3701,7 +4042,16 @@ function renderMaterials(it) {
 function renderPricing(it, c) {
   const b = basis(it.billingBasis);
   const p = c.price;
-  let h = '<div class="grid2">' +
+  let h = '';
+  if (it.pricingMode === 'labor') {
+    const bill = num(it.laborBillingRate) || laborBillingRate();
+    h += '<div class="notice"><span class="strong">Priced from labor at ' + money(bill) + ' / hour.</span> ' +
+      (b.laborFromQuantity
+        ? 'Hours entered above are charged at that rate.'
+        : money(bill) + ' ÷ ' + qty(it.productionRate) + ' ' + esc(it.unitLabel) + '/hr = ' + money(it.sellingRate) + ' per ' + esc(it.unitLabel) +
+          '. Editing the rate below overrides that for this line only.') + '</div>';
+  }
+  h += '<div class="grid2">' +
     '<div class="field"><label for="rate_' + it.id + '">' + (b.id === 'flat' ? 'Flat rate' : 'Selling rate / ' + esc(it.unitLabel)) + '</label>' +
       '<input type="number" inputmode="decimal" step="any" min="0" id="rate_' + it.id + '" value="' + esc(it.sellingRate) + '" data-oninput="itemRate" data-id="' + it.id + '"></div>' +
     '<div class="field"><label for="min_' + it.id + '">Minimum charge</label>' +
@@ -3709,11 +4059,14 @@ function renderPricing(it, c) {
   '</div>';
 
   h += '<div class="calc-trace">' +
-    '<div class="ct-line"><span>Base at rate</span><span>' + money(p.rawPrice) + '</span></div>' +
+    '<div class="ct-line"><span>' + (it.pricingMode === 'labor'
+        ? hrs(c.labor.final, 2) + ' labor hrs \u00d7 ' + money(num(it.laborBillingRate) || laborBillingRate())
+        : 'Base at rate') + '</span><span>' + money(p.rawPrice) + '</span></div>' +
     (p.minimumApplied ? '<div class="ct-line"><span>Minimum charge applied</span><span>' + money(p.minimum) + '</span></div>' : '') +
     p.adjustmentDetail.map(function (a) {
       return '<div class="ct-line"><span>' + esc(a.label) + (a.type === 'percent' ? ' (' + a.value + '%)' : '') + '</span><span>' + money(a.amount) + '</span></div>';
     }).join('') +
+    (p.materialRevenue ? '<div class="ct-line"><span>Materials billed on</span><span>' + money(p.materialRevenue) + '</span></div>' : '') +
     '<div class="ct-line tot"><span>Recommended price</span><span>' + money(p.recommended) + '</span></div>' +
     (p.overridden ? '<div class="ct-line tot"><span>Quoted price</span><span>' + money(p.quoted) + '</span></div>' +
       '<div class="ct-line"><span>Difference</span><span>' + money(p.overrideDiff) + ' / ' + pct(p.overridePct, 1) + '</span></div>' : '') +
@@ -4001,7 +4354,7 @@ ACTIONS.renameOption = function () {
   openModal({
     title: 'Rename option',
     body: fieldText('opt_name', 'Option name', o.name) +
-      fieldText('opt_desc', 'Short description (shown to customer)', o.description, { placeholder: 'e.g. Clubhouse exterior plus pool deck' }),
+      fieldText('opt_desc', 'Short description (shown to the client)', o.description, { placeholder: 'e.g. Clubhouse exterior plus pool deck' }),
     footer: '<button class="btn" data-modal-close>Cancel</button><button class="btn primary" data-act="saveOptionName">Save</button>'
   });
 };
@@ -4092,41 +4445,35 @@ function renderStepReview(q) {
   let html = '<div class="page-head"><h1>Review</h1><div class="sub">Check the numbers, then save and send.</div></div>';
 
   html += '<div class="card"><div class="card-head"><h3>Quote details</h3></div>' +
-    '<div class="kv"><span class="k">Customer</span><span class="v">' + esc(customerLabel(c)) + '</span></div>' +
+    '<div class="kv"><span class="k">Client</span><span class="v">' + esc(customerLabel(c)) + '</span></div>' +
     '<div class="kv"><span class="k">Property</span><span class="v">' + esc(propertyLabel(p)) + '</span></div>' +
     '<div class="grid2 mt-12">' +
       '<div class="field"><label for="qDate">Quote date</label><input type="date" id="qDate" value="' + esc(q.quoteDate) + '" data-onchange="quoteDate"></div>' +
       '<div class="field"><label for="qValid">Valid through</label><input type="date" id="qValid" value="' + esc(q.validUntil) + '" data-onchange="quoteValid"></div>' +
     '</div>' +
-    '<div class="grid2">' +
-      '<div class="field"><label for="qMiles">Travel distance (miles, round trip)</label><input type="number" inputmode="decimal" step="any" min="0" id="qMiles" value="' + esc(q.travelMiles) + '" data-oninput="quoteMiles"></div>' +
-      '<div class="field"><label for="qMob">Additional mobilization cost</label><input type="number" inputmode="decimal" step="any" min="0" id="qMob" value="' + esc(q.mobilizationFlat) + '" data-oninput="quoteMob"></div>' +
-    '</div>' +
-    '<div class="hint">Travel cost uses ' + money(q.economicsSnapshot.travelCostPerMile) + '/mile from the economics assumptions saved with this quote.</div>' +
   '</div>';
-
-  html += '<div id="crewCardReview">' + renderCrewCard(q) + '</div>';
 
   html += renderPhotoCard(q);
 
   html += '<div class="card"><div class="card-head"><h3>Price summary</h3></div><div id="reviewTotals">' + reviewTotalsHTML(q) + '</div></div>';
 
-  html += '<div class="section-title">Internal economics <span class="internal-flag">' + icon('alert', 12) + ' Never shown to the customer</span></div>';
+  html += '<div class="section-title">Internal economics <span class="internal-flag">' + icon('alert', 12) + ' Never shown to the client</span></div>';
   html += '<div id="reviewEcon">' + reviewEconomicsHTML(q) + '</div>';
 
   html += '<div class="card"><div class="card-head"><h3>Notes</h3></div>' +
-    fieldTextarea('qCustNote', 'Customer-facing note', q.customerNotes, { rows: 4 }) +
+    fieldTextarea('qCustNote', 'Client-facing note', q.customerNotes, { rows: 4 }) +
     fieldTextarea('qAssume', 'Assumptions (one per line)', q.assumptions, { rows: 5 }) +
     fieldTextarea('qExcl', 'Exclusions (one per line)', q.exclusions, { rows: 5 }) +
     fieldTextarea('qTerms', 'Terms (one per line)', q.terms, { rows: 4 }) +
-    fieldTextarea('qIntNote', 'Internal notes — never shown to the customer', q.internalNotes, { rows: 3 }) +
+    fieldTextarea('qCrewNote', 'Notes for the crew — appears on the work order, not the proposal', q.crewNotes, { rows: 3 }) +
+    fieldTextarea('qIntNote', 'Internal notes — never shown to the client or the crew', q.internalNotes, { rows: 3 }) +
     '<button class="btn primary block" data-act="saveNotes">Save notes</button>' +
   '</div>';
 
   html += '<div class="btn-row stack">' +
     '<button class="btn primary" data-act="finishQuote">Save &amp; Finish</button>' +
-    '<button class="btn" data-act="previewFromEditor">' + icon('doc', 17) + ' Preview Customer Proposal</button>' +
-    '<button class="btn ghost" data-act="prevStep">' + icon('back', 16) + ' Back to scope</button>' +
+    '<button class="btn" data-act="previewFromEditor">' + icon('doc', 17) + ' Preview Client Proposal</button>' +
+    '<button class="btn ghost" data-act="prevStep">' + icon('back', 16) + ' Back to crew &amp; labor</button>' +
   '</div>';
   return html;
 }
@@ -4147,13 +4494,14 @@ ACTIONS.saveNotes = function () {
   q.assumptions = val('qAssume');
   q.exclusions = val('qExcl');
   q.terms = val('qTerms');
+  q.crewNotes = val('qCrewNote');
   q.internalNotes = val('qIntNote');
   persistQuote(q);
   toast('Notes saved', 'good');
 };
 ACTIONS.previewFromEditor = function () {
   const q = currentQuote();
-  if (!validateStep(3)) return;
+  if (!validateStep(STEP_SCOPE)) return;
   persistQuote(q);
   go('proposal', { id: q.id });
 };
@@ -4196,10 +4544,14 @@ VIEWS.quote = function (params) {
   /* actions */
   html += '<div class="card mt-16"><div class="btn-row">' +
     '<button class="btn primary" data-act="editQuote" data-id="' + q.id + '">' + icon('edit', 17) + ' Edit Quote</button>' +
-    '<button class="btn" data-act="openProposal" data-id="' + q.id + '">' + icon('doc', 17) + ' Customer Proposal</button>' +
+    '<button class="btn" data-act="openProposal" data-id="' + q.id + '">' + icon('doc', 17) + ' Client Proposal</button>' +
     '<button class="btn dark" data-act="sendQuote" data-id="' + q.id + '">' + icon('send', 17) + ' Send Quote</button>' +
     '<button class="btn" data-act="savePdf" data-id="' + q.id + '">' + icon('download', 17) + ' Save PDF</button>' +
     '<button class="btn" data-act="shareQuote" data-id="' + q.id + '">' + icon('share', 17) + ' Share Summary</button>' +
+  '</div>' +
+  '<div class="btn-row mt-12">' +
+    '<button class="btn" data-act="openWorkOrder" data-id="' + q.id + '">' + icon('doc', 17) + ' Crew Work Order</button>' +
+    '<button class="btn dark" data-act="sendWorkOrder" data-id="' + q.id + '">' + icon('send', 17) + ' Send to Crew</button>' +
   '</div>' +
   '<div class="btn-row mt-12">' +
     (q.status !== 'Accepted' ? '<button class="btn" data-act="markAccepted" data-id="' + q.id + '">Mark Accepted</button>' : '') +
@@ -4574,7 +4926,7 @@ function acceptBody(q) {
       '<div class="hint mb-12">Recorded on the quote only. Add them as a contact if you will deal with them again.</div>' +
     '</div>' +
     fieldTextarea('acc_note', 'Note (optional)', '', { rows: 3 }) +
-    '<div class="notice">Prototype acceptance capture. The production version will use a secure customer link with a timestamped acceptance record.</div>';
+    '<div class="notice">Prototype acceptance capture. The production version will use a secure client link with a timestamped acceptance record.</div>';
 }
 function openAcceptModal(q) {
   openModal({
@@ -4965,9 +5317,9 @@ VIEWS.proposal = function (params) {
   const st = effectiveStatus(q);
 
   let html = '<div class="no-print">' +
-    '<div class="page-head"><h1>Customer Proposal</h1>' +
-      '<div class="sub">' + esc(q.quoteNumber) + ' · <span class="badge ' + st.toLowerCase() + '">' + st + '</span> · This is exactly what the customer sees.</div></div>' +
-    '<div class="notice">Internal figures — labor hours, costs, margin, production rates and overrides — are never part of this view. It is built from a customer-safe projection of the quote.</div>' +
+    '<div class="page-head"><h1>Client Proposal</h1>' +
+      '<div class="sub">' + esc(q.quoteNumber) + ' · <span class="badge ' + st.toLowerCase() + '">' + st + '</span> · This is exactly what the client sees.</div></div>' +
+    '<div class="notice">Internal figures — labor hours, costs, margin, production rates and overrides — are never part of this view. It is built from a client-safe projection of the quote.</div>' +
     '<div class="card"><div class="btn-row">' +
       '<button class="btn primary" data-act="savePdf" data-id="' + q.id + '">' + icon('download', 17) + ' Save PDF</button>' +
       '<button class="btn" data-act="printQuote" data-id="' + q.id + '">' + icon('print', 17) + ' Print</button>' +
@@ -4978,7 +5330,7 @@ VIEWS.proposal = function (params) {
     '<div class="btn-row mt-12">' +
       '<button class="btn" data-act="markAccepted" data-id="' + q.id + '">' + icon('check', 16) + ' Accept</button>' +
       '<button class="btn danger" data-act="markDeclined" data-id="' + q.id + '">Decline</button>' +
-      '<span class="small muted" style="align-self:center">Prototype acceptance controls — a customer would do this from a secure link.</span>' +
+      '<span class="small muted" style="align-self:center">Prototype acceptance controls — a client would do this from a secure link.</span>' +
     '</div></div></div>';
 
   html += renderProposalHTML(d);
@@ -5015,6 +5367,273 @@ function printQuote(quoteId) {
   setTimeout(cleanup, 1500);      // Safari does not always fire afterprint
 }
 ACTIONS.printQuote = function (d) { printQuote(d.id); };
+/* ==========================================================================
+   CREW WORK ORDER — crew-facing projection
+   The crew sheet is rendered from buildWorkOrderData() ONLY, exactly the way
+   the client proposal is rendered from buildProposalData(). The projection
+   carries NO money: no price, no cost, no margin, no labor rate, no material
+   cost. What it carries is what someone standing at the property needs —
+   scope, measurements, site conditions, allotted hours, materials, access and
+   photos. A figure that is not in the object cannot leak onto a job site.
+   ========================================================================== */
+
+function workOrderConditions(it) {
+  /* Only the answers that differ from neutral are worth a crew's attention. */
+  const out = [];
+  itemAdjustmentGroups(it).forEach(function (g) {
+    const chosen = (it.adjustments || {})[g.key] || g.def;
+    if (chosen === g.def) return;
+    const opt = g.options.find(function (o) { return o.id === chosen; });
+    if (opt) out.push(g.label + ': ' + opt.label);
+  });
+  itemAdjustmentFlags(it).forEach(function (f) {
+    if ((it.flags || []).indexOf(f.id) >= 0) out.push(f.label);
+  });
+  return out;
+}
+
+function buildWorkOrderData(q) {
+  const s = state.settings;
+  const c = byId(state.customers, q.customerId);
+  const p = byId(state.properties, q.propertyId);
+  const recips = (q.recipientContactIds || []).map(function (id) { return byId(state.contacts, id); }).filter(Boolean);
+  const siteContact = recips[0] || contactsFor(q.customerId)[0] || null;
+
+  /* The accepted option is the work. Nothing accepted yet: the recommended one,
+     falling back to the first, so a crew sheet can be sent while still quoting. */
+  const accId = q.acceptance ? q.acceptance.optionId : null;
+  const option = (accId && byId(q.options, accId)) ||
+                 q.options.find(function (o) { return o.recommended; }) ||
+                 q.options[0] || { name: 'Scope', items: [] };
+
+  const econ = q.economicsSnapshot || s.economics;
+  const items = option.items || [];
+  const totalHours = round(items.reduce(function (sum, it) { return sum + calculateTotalLabor(it).final; }, 0), 2);
+  const crew = calculateCrewLabor(totalHours, q, econ);
+
+  /* Materials the crew has to load. Quantities and units only — never cost.
+     An allowance is a budget figure, so it is deliberately not carried over. */
+  const materials = [];
+  items.forEach(function (it) {
+    if (it.materialMode !== 'lines') return;
+    (it.materialLines || []).forEach(function (l) {
+      if (!l.name || num(l.quantity) <= 0) return;
+      const found = materials.find(function (m) { return m.name === l.name && m.unit === l.unit; });
+      if (found) found.quantity = round(found.quantity + num(l.quantity), 2);
+      else materials.push({ name: l.name, unit: l.unit, quantity: round(num(l.quantity), 2) });
+    });
+  });
+
+  return {
+    company: {
+      name: s.company.name,
+      tagline: s.company.tagline,
+      useLogo: String(s.company.name || '').trim().toLowerCase() === 'sunday pin',
+      phone: s.company.phone,
+      email: s.company.email
+    },
+    quoteNumber: q.quoteNumber || 'Draft',
+    status: effectiveStatus(q),
+    accepted: q.status === 'Accepted',
+    issuedOn: todayISO(),
+    quoteDate: q.quoteDate,
+    clientName: customerLabel(c),
+    siteContact: siteContact ? { name: contactLabel(siteContact), phone: siteContact.phone || '', email: siteContact.email || '' } : null,
+    propertyName: propertyLabel(p),
+    propertyAddress: propertyAddress(p),
+    waterAvailable: p ? (p.waterAvailable || 'Unknown') : 'Unknown',
+    accessNotes: p ? (p.accessNotes || '') : '',
+    propertyNotes: p ? (p.notes || '') : '',
+    /* A single-mode quote's option is just called "Proposal" — a heading of
+       "Scope of work — Proposal" is noise. Only name it when there is a choice. */
+    optionName: q.mode === 'options' ? option.name : '',
+    crew: {
+      size: crew.crewSize,
+      roles: crew.roles.map(function (r) { return { name: r.name, count: r.count }; }),   // names and counts, never rates
+      laborHours: totalHours,
+      onSiteHours: crew.onSiteHours,
+      workDayHours: crew.workDayHours
+    },
+    lines: items.map(function (it) {
+      const b = basis(it.billingBasis);
+      const L = calculateTotalLabor(it, crew.crewSize);
+      let measure = '';
+      if (b.id === 'flat') measure = 'Flat scope';
+      else if (b.id === 'hour') measure = qty(it.quantity) + ' ' + (num(it.quantity) === 1 ? 'hour' : 'hours');
+      else measure = qty(it.quantity) + ' ' + it.unitLabel;
+      return {
+        name: it.name,
+        venue: it.venue || 'Exterior',
+        description: it.description || '',
+        measure: measure,
+        hours: L.final,
+        conditions: workOrderConditions(it),
+        notes: it.notes || ''
+      };
+    }),
+    materials: materials,
+    /* Every photo, not only the ones chosen for the proposal — a crew wants the
+       ugly ones most. */
+    photos: (q.photos || []).map(function (ph) {
+      return { id: ph.id, caption: ph.caption || '', src: (photoCache[ph.id] || {}).full || '' };
+    }).filter(function (ph) { return !!ph.src; }),
+    crewNotes: q.crewNotes || '',
+    assumptions: lines(q.assumptions),
+    exclusions: lines(q.exclusions)
+  };
+}
+
+/* ==========================================================================
+   SCREEN / PRINT
+   Reuses the proposal sheet's classes so the existing print rules apply.
+   ========================================================================== */
+function renderWorkOrderHTML(d) {
+  let h = '<article class="proposal workorder" id="workOrderSheet">';
+
+  h += '<header class="prop-head">' +
+    '<div class="prop-brand' + (d.company.useLogo ? ' with-logo' : '') + '">' +
+      (d.company.useLogo ? '<img class="prop-logo" src="' + BRAND_LOGO_FULL + '" alt="' + esc(d.company.name) + '">' : '') +
+      '<div class="p1">' + esc(d.company.name) + '</div><div class="p2">' + esc(d.company.tagline) + '</div></div>' +
+    '<div class="wo-title">Crew Work Order</div>' +
+    '<div class="prop-meta">' +
+      '<div><div class="m-k">Job Number</div><div class="m-v">' + esc(d.quoteNumber) + '</div></div>' +
+      '<div><div class="m-k">Status</div><div class="m-v">' + esc(d.status) + '</div></div>' +
+      '<div><div class="m-k">Client</div><div class="m-v">' + esc(d.clientName) + '</div></div>' +
+      '<div><div class="m-k">Issued</div><div class="m-v">' + fmtDate(d.issuedOn) + '</div></div>' +
+    '</div>' +
+  '</header>';
+
+  /* ---- site ---- */
+  h += '<section class="prop-sec"><h3>Site</h3><div class="prop-group">' +
+    '<div class="kv"><span class="k">Property</span><span class="v">' + esc(d.propertyName) + '</span></div>' +
+    (d.propertyAddress ? '<div class="kv"><span class="k">Address</span><span class="v">' + esc(d.propertyAddress) + '</span></div>' : '') +
+    (d.siteContact ? '<div class="kv"><span class="k">Site contact</span><span class="v">' + esc(d.siteContact.name) +
+        (d.siteContact.phone ? ' · ' + esc(d.siteContact.phone) : '') + '</span></div>' : '') +
+    '<div class="kv"><span class="k">Water on site</span><span class="v">' + esc(d.waterAvailable) + '</span></div>' +
+  '</div>' +
+  (d.accessNotes ? '<p class="wo-note"><strong>Access:</strong> ' + esc(d.accessNotes) + '</p>' : '') +
+  (d.propertyNotes ? '<p class="wo-note"><strong>Property notes:</strong> ' + esc(d.propertyNotes) + '</p>' : '') +
+  '</section>';
+
+  /* ---- crew plan ---- */
+  h += '<section class="prop-sec"><h3>Crew &amp; time</h3><div class="prop-group">' +
+    '<div class="kv"><span class="k">Crew</span><span class="v">' + d.crew.size + ' ' + (d.crew.size === 1 ? 'person' : 'people') +
+      (d.crew.roles.length ? ' — ' + d.crew.roles.map(function (r) { return r.count + ' × ' + esc(r.name); }).join(', ') : '') + '</span></div>' +
+    '<div class="kv"><span class="k">Allotted labor</span><span class="v">' + hrs(d.crew.laborHours, 1) + ' man-hours</span></div>' +
+    '<div class="kv"><span class="k">Expected on site</span><span class="v">about ' + hrs(d.crew.onSiteHours, 1) + ' hours</span></div>' +
+  '</div>' +
+  '<p class="wo-note small muted">Allotted hours are the estimate the job was built on. If the property does not match this sheet, call before starting rather than absorbing it.</p>' +
+  '</section>';
+
+  /* ---- scope ---- */
+  h += '<section class="prop-sec"><h3>Scope of work' + (d.optionName ? ' — ' + esc(d.optionName) : '') + '</h3>';
+  if (!d.lines.length) {
+    h += '<p class="wo-note">No services on this job yet.</p>';
+  } else {
+    d.lines.forEach(function (l, i) {
+      h += '<div class="wo-line prop-line">' +
+        '<div class="wo-line-head"><span class="wo-n">' + (i + 1) + '</span>' +
+          '<span class="wo-name">' + esc(l.name) + '</span>' +
+          '<span class="wo-hrs">' + hrs(l.hours, 1) + ' hrs</span></div>' +
+        '<div class="wo-measure">' + esc(l.measure) + ' · ' + esc(l.venue) + '</div>' +
+        (l.description ? '<p class="wo-desc">' + esc(l.description) + '</p>' : '') +
+        (l.conditions.length ? '<div class="wo-cond"><strong>Site conditions:</strong> ' + esc(l.conditions.join(' · ')) + '</div>' : '') +
+        (l.notes ? '<div class="wo-cond"><strong>Note:</strong> ' + esc(l.notes) + '</div>' : '') +
+      '</div>';
+    });
+  }
+  h += '</section>';
+
+  /* ---- materials ---- */
+  if (d.materials.length) {
+    h += '<section class="prop-sec"><h3>Materials to load</h3><div class="prop-group">' +
+      d.materials.map(function (m) {
+        return '<div class="kv"><span class="k">' + esc(m.name) + '</span><span class="v">' + qty(m.quantity) + ' ' + esc(m.unit) + '</span></div>';
+      }).join('') + '</div></section>';
+  }
+
+  /* ---- notes ---- */
+  if (d.crewNotes) {
+    h += '<section class="prop-sec"><h3>Notes for the crew</h3><p class="wo-note">' + esc(d.crewNotes).replace(/\n/g, '<br>') + '</p></section>';
+  }
+  if (d.exclusions.length) {
+    h += '<section class="prop-sec"><h3>Not included — do not do these</h3><ul class="prop-list">' +
+      d.exclusions.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></section>';
+  }
+  if (d.assumptions.length) {
+    h += '<section class="prop-sec"><h3>What the estimate assumed</h3><ul class="prop-list">' +
+      d.assumptions.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></section>';
+  }
+
+  /* ---- photos ---- */
+  if (d.photos.length) {
+    h += '<section class="prop-sec"><h3>Property photos</h3><div class="prop-photos wo-photos">' +
+      d.photos.map(function (ph) {
+        return '<figure><img src="' + ph.src + '" alt="' + esc(ph.caption || 'Property photo') + '">' +
+          (ph.caption ? '<figcaption>' + esc(ph.caption) + '</figcaption>' : '') + '</figure>';
+      }).join('') + '</div></section>';
+  }
+
+  /* ---- sign-off: what comes back ---- */
+  h += '<section class="prop-sec sign-box"><h3>On completion</h3>' +
+    '<div class="wo-signrow">' +
+      '<div class="wo-sign"><span></span><label>Crew lead</label></div>' +
+      '<div class="wo-sign"><span></span><label>Date</label></div>' +
+    '</div>' +
+    '<div class="wo-signrow">' +
+      '<div class="wo-sign"><span></span><label>Actual hours on site</label></div>' +
+      '<div class="wo-sign"><span></span><label>Anything that slowed the job</label></div>' +
+    '</div>' +
+  '</section>';
+
+  h += '</article>';
+  return h;
+}
+
+VIEWS.workorder = function (params) {
+  const q = byId(state.quotes, params.id);
+  if (!q) return '<div class="card"><div class="empty"><h3>Quote not found</h3></div></div>';
+  const d = buildWorkOrderData(q);
+
+  let html = '<div class="no-print">' +
+    '<div class="page-head"><h1>Crew Work Order</h1>' +
+      '<div class="sub">' + esc(q.quoteNumber) + ' · ' + esc(d.status) + ' · What the crew gets. No pricing on it.</div></div>' +
+    '<div class="notice">Built from a crew-safe projection: scope, hours, materials, access and photos. Price, cost, margin and labor rates are never part of this object, so they cannot appear on the sheet.</div>' +
+    '<div class="card"><div class="btn-row">' +
+      '<button class="btn primary" data-act="saveWorkOrder" data-id="' + q.id + '">' + icon('download', 17) + ' Save PDF</button>' +
+      '<button class="btn dark" data-act="sendWorkOrder" data-id="' + q.id + '">' + icon('send', 17) + ' Send to Crew</button>' +
+      '<button class="btn" data-act="printWorkOrder" data-id="' + q.id + '">' + icon('print', 17) + ' Print</button>' +
+      '<button class="btn" data-act="openQuote" data-id="' + q.id + '">Back to quote record</button>' +
+    '</div></div></div>';
+
+  html += renderWorkOrderHTML(d);
+  return html;
+};
+VIEWS.workorder_actions = function (params) {
+  return '<button class="topbar-btn" data-act="saveWorkOrder" data-id="' + params.id + '">Save PDF</button>';
+};
+ACTIONS.openWorkOrder = function (d) { go('workorder', { id: d.id }); };
+
+function printWorkOrder(quoteId) {
+  const q = byId(state.quotes, quoteId);
+  if (!q) return;
+  const root = document.getElementById('printRoot');
+  if (!root) { window.print(); return; }
+  const title = document.title;
+  root.innerHTML = renderWorkOrderHTML(buildWorkOrderData(q));
+  document.body.classList.add('printing');
+  document.title = (q.quoteNumber || 'Job') + ' Work Order';
+  const cleanup = function () {
+    document.body.classList.remove('printing');
+    document.title = title;
+    root.innerHTML = '';
+    window.removeEventListener('afterprint', cleanup);
+  };
+  window.addEventListener('afterprint', cleanup);
+  window.print();
+  setTimeout(cleanup, 1500);
+}
+ACTIONS.printWorkOrder = function (d) { printWorkOrder(d.id); };
 /* ==========================================================================
    PDF GENERATION
    Builds the customer proposal as a real, text-based PDF inside the browser,
@@ -5405,6 +6024,337 @@ ACTIONS.shareWithPdf = function (d) {
   }
 };
 /* ==========================================================================
+   CREW WORK ORDER — PDF
+   Same approach as the client proposal PDF: a real text-based PDF built in the
+   browser from buildWorkOrderData(), so it can be attached to a message rather
+   than only printed. The projection carries no money, so neither does this.
+   ========================================================================== */
+
+function generateWorkOrderPdf(q) {
+  if (!pdfAvailable()) return null;
+  const d = buildWorkOrderData(q);
+  const doc = new window.jspdf.jsPDF({ unit: 'pt', format: 'letter', compress: true });
+
+  const M = 54, PW = 612, PH = 792, CW = PW - M * 2, BOTTOM = PH - 58;
+  let y = M;
+
+  const setFont = function (style, size, color) {
+    doc.setFont('helvetica', style);
+    doc.setFontSize(size);
+    const c = color || PDF_COLORS.ink;
+    doc.setTextColor(c[0], c[1], c[2]);
+  };
+  const rule = function (yy, color, width) {
+    const c = color || PDF_COLORS.line;
+    doc.setDrawColor(c[0], c[1], c[2]);
+    doc.setLineWidth(width || 0.6);
+    doc.line(M, yy, PW - M, yy);
+  };
+  const ensure = function (h) { if (y + h > BOTTOM) { doc.addPage(); y = M; } };
+  const para = function (text, opts) {
+    opts = opts || {};
+    const size = opts.size || 9.5;
+    const lh = opts.lh || size * 1.45;
+    setFont(opts.style || 'normal', size, opts.color || PDF_COLORS.ink2);
+    doc.splitTextToSize(String(text || ''), opts.width || CW).forEach(function (ln) {
+      ensure(lh);
+      doc.text(ln, opts.x || M, y);
+      y += lh;
+    });
+  };
+  const sectionTitle = function (title, reserve) {
+    ensure(34 + (reserve || 0));
+    setFont('bold', 8, PDF_COLORS.accent);
+    doc.setCharSpace(1.1);
+    doc.text(String(title).toUpperCase(), M, y);
+    doc.setCharSpace(0);
+    y += 7;
+    rule(y);
+    y += 15;
+  };
+  const kv = function (k, v) {
+    const lines = doc.splitTextToSize(String(v || ''), CW - 150);
+    ensure(lines.length * 13 + 4);
+    setFont('bold', 8.5, PDF_COLORS.muted);
+    doc.text(String(k), M, y);
+    setFont('normal', 9.5, PDF_COLORS.ink);
+    lines.forEach(function (ln, i) { doc.text(ln, M + 150, y + i * 13); });
+    y += lines.length * 13 + 4;
+  };
+  const bullets = function (items) {
+    items.forEach(function (t) {
+      setFont('normal', 9.5, PDF_COLORS.ink2);
+      const lines = doc.splitTextToSize(String(t), CW - 16);
+      ensure(lines.length * 13.5 + 3);
+      doc.setFillColor(PDF_COLORS.accent[0], PDF_COLORS.accent[1], PDF_COLORS.accent[2]);
+      doc.circle(M + 3, y - 3, 1.6, 'F');
+      lines.forEach(function (ln, i) { doc.text(ln, M + 16, y); y += 13.5; if (i < lines.length - 1) ensure(13.5); });
+      y += 3;
+    });
+  };
+
+  /* ---------- header ---------- */
+  if (d.company.useLogo && typeof BRAND_LOGO_FULL === 'string') {
+    const lw = 120, lh = lw * (434 / 520);
+    doc.addImage(BRAND_LOGO_FULL, 'PNG', M, y, lw, lh);
+    y += lh + 12;
+  } else {
+    setFont('bold', 20, PDF_COLORS.navy);
+    doc.text(d.company.name, M, y + 16);
+    y += 30;
+  }
+  setFont('bold', 15, PDF_COLORS.navy);
+  doc.text('Crew Work Order', M, y);
+  y += 20;
+
+  const meta = [
+    ['Job Number', d.quoteNumber],
+    ['Status', d.status],
+    ['Client', d.clientName],
+    ['Issued', fmtDate(d.issuedOn)]
+  ];
+  const colX = [M, M + CW / 2];
+  meta.forEach(function (pair, i) {
+    const x = colX[i % 2];
+    if (i % 2 === 0 && i > 0) y += 30;
+    setFont('bold', 7.5, PDF_COLORS.muted);
+    doc.setCharSpace(0.9);
+    doc.text(String(pair[0]).toUpperCase(), x, y);
+    doc.setCharSpace(0);
+    setFont('bold', 11, PDF_COLORS.ink);
+    doc.text(String(pair[1] || '—'), x, y + 14);
+  });
+  y += 34;
+  rule(y, PDF_COLORS.navy, 1.4);
+  y += 20;
+
+  /* ---------- site ---------- */
+  sectionTitle('Site', 60);
+  kv('Property', d.propertyName);
+  if (d.propertyAddress) kv('Address', d.propertyAddress);
+  if (d.siteContact) kv('Site contact', d.siteContact.name + (d.siteContact.phone ? '  ·  ' + d.siteContact.phone : ''));
+  kv('Water on site', d.waterAvailable);
+  if (d.accessNotes) { y += 4; para('Access: ' + d.accessNotes); }
+  if (d.propertyNotes) para('Property notes: ' + d.propertyNotes);
+  y += 12;
+
+  /* ---------- crew and time ---------- */
+  sectionTitle('Crew & Time', 50);
+  kv('Crew', d.crew.size + ' ' + (d.crew.size === 1 ? 'person' : 'people') +
+    (d.crew.roles.length ? '  —  ' + d.crew.roles.map(function (r) { return r.count + ' × ' + r.name; }).join(', ') : ''));
+  kv('Allotted labor', hrs(d.crew.laborHours, 1) + ' man-hours');
+  kv('Expected on site', 'about ' + hrs(d.crew.onSiteHours, 1) + ' hours');
+  y += 4;
+  para('Allotted hours are the estimate the job was built on. If the property does not match this sheet, call before starting rather than absorbing it.',
+    { size: 8.5, color: PDF_COLORS.muted });
+  y += 12;
+
+  /* ---------- scope ---------- */
+  sectionTitle('Scope of Work' + (d.optionName ? ' — ' + d.optionName : ''), 60);
+  d.lines.forEach(function (l, i) {
+    ensure(46);
+    setFont('bold', 11, PDF_COLORS.ink);
+    doc.text(String(i + 1) + '.  ' + l.name, M, y);
+    setFont('bold', 10, PDF_COLORS.accent);
+    doc.text(hrs(l.hours, 1) + ' hrs', PW - M, y, { align: 'right' });
+    y += 14;
+    setFont('bold', 9, PDF_COLORS.ink2);
+    doc.text(l.measure + '   ·   ' + l.venue, M, y);
+    y += 13;
+    if (l.description) para(l.description, { size: 9, color: PDF_COLORS.ink2 });
+    if (l.conditions.length) para('Site conditions: ' + l.conditions.join('  ·  '), { size: 9, style: 'bold', color: PDF_COLORS.ink });
+    if (l.notes) para('Note: ' + l.notes, { size: 9, style: 'bold', color: PDF_COLORS.ink });
+    y += 8;
+    rule(y - 4);
+    y += 8;
+  });
+  if (!d.lines.length) para('No services on this job yet.');
+  y += 6;
+
+  /* ---------- materials ---------- */
+  if (d.materials.length) {
+    sectionTitle('Materials to Load', 40);
+    d.materials.forEach(function (m) { kv(m.name, qty(m.quantity) + ' ' + m.unit); });
+    y += 12;
+  }
+
+  /* ---------- notes ---------- */
+  if (d.crewNotes) { sectionTitle('Notes for the Crew', 30); para(d.crewNotes); y += 12; }
+  if (d.exclusions.length) { sectionTitle('Not Included — Do Not Do These', 30); bullets(d.exclusions); y += 8; }
+  if (d.assumptions.length) { sectionTitle('What the Estimate Assumed', 30); bullets(d.assumptions); y += 8; }
+
+  /* ---------- photos ---------- */
+  if (d.photos.length) {
+    const gap = 14, cols = 2, cw = (CW - gap) / cols, maxH = 190;
+    const boxOf = function (ph) {
+      const cached = photoCache[ph.id] || {};
+      const ratio = cached.h && cached.w ? cached.h / cached.w : 0.75;
+      let iw = cw, ih = cw * ratio;
+      if (ih > maxH) { ih = maxH; iw = ih / ratio; }
+      return { iw: iw, ih: ih, capH: ph.caption ? 14 : 0 };
+    };
+    sectionTitle('Property Photos', boxOf(d.photos[0]).ih + 20);
+    let col = 0, rowTop = y, rowH = 0;
+    d.photos.forEach(function (ph) {
+      const b = boxOf(ph);
+      if (col === 0) { ensure(b.ih + b.capH + gap); rowTop = y; rowH = 0; }
+      const x = M + col * (cw + gap);
+      try { doc.addImage(ph.src, 'JPEG', x, rowTop, b.iw, b.ih); } catch (e) { /* skip an unreadable image */ }
+      if (ph.caption) {
+        setFont('normal', 8, PDF_COLORS.muted);
+        doc.text(doc.splitTextToSize(ph.caption, cw)[0], x, rowTop + b.ih + 11);
+      }
+      rowH = Math.max(rowH, b.ih + b.capH);
+      col += 1;
+      if (col === cols) { col = 0; y = rowTop + rowH + gap; }
+    });
+    if (col !== 0) y = rowTop + rowH + gap;
+    y += 6;
+  }
+
+  /* ---------- what comes back ---------- */
+  ensure(120);
+  sectionTitle('On Completion');
+  const half = (CW - 30) / 2;
+  const sigLine = function (label, x) {
+    doc.setDrawColor(PDF_COLORS.muted[0], PDF_COLORS.muted[1], PDF_COLORS.muted[2]);
+    doc.setLineWidth(0.6);
+    doc.line(x, y, x + half, y);
+    setFont('normal', 7.5, PDF_COLORS.muted);
+    doc.setCharSpace(0.8);
+    doc.text(label.toUpperCase(), x, y + 11);
+    doc.setCharSpace(0);
+  };
+  y += 20;
+  sigLine('Crew Lead', M);
+  sigLine('Date', M + half + 30);
+  y += 50;
+  ensure(30);
+  sigLine('Actual Hours On Site', M);
+  sigLine('Anything That Slowed The Job', M + half + 30);
+  y += 30;
+
+  /* ---------- footers ---------- */
+  const pages = doc.getNumberOfPages();
+  for (let i = 1; i <= pages; i++) {
+    doc.setPage(i);
+    rule(PH - 44);
+    setFont('normal', 8, PDF_COLORS.muted);
+    doc.text(d.company.name + '  ·  Work Order ' + d.quoteNumber + '  ·  ' + d.company.phone, M, PH - 30);
+    doc.text('Page ' + i + ' of ' + pages, PW - M, PH - 30, { align: 'right' });
+  }
+
+  const safe = function (t) { return String(t || '').replace(/[^\w\s.-]/g, '').replace(/\s+/g, ' ').trim(); };
+  return {
+    blob: doc.output('blob'),
+    dataUri: doc.output('datauristring'),
+    filename: safe(d.quoteNumber) + ' Work Order - ' + safe(d.propertyName) + '.pdf'
+  };
+}
+
+/* --- the message that goes with it -------------------------------------- */
+function buildWorkOrderMessage(q, extra) {
+  const d = buildWorkOrderData(q);
+  const co = state.settings.company;
+  const scope = d.lines.map(function (l) { return '  • ' + l.name + ' — ' + l.measure + ' (' + hrs(l.hours, 1) + ' hrs)'; }).join('\n');
+  const subject = 'Work Order ' + d.quoteNumber + ' — ' + d.propertyName;
+  const body = (extra || '') + (extra ? '\n\n' : '') +
+    'WORK ORDER ' + d.quoteNumber + '\n' +
+    d.propertyName + (d.propertyAddress ? '\n' + d.propertyAddress : '') + '\n' +
+    (d.siteContact ? 'Site contact: ' + d.siteContact.name + (d.siteContact.phone ? ' · ' + d.siteContact.phone : '') + '\n' : '') +
+    '\n' +
+    'Crew: ' + d.crew.size + ' ' + (d.crew.size === 1 ? 'person' : 'people') + '\n' +
+    'Allotted: ' + hrs(d.crew.laborHours, 1) + ' man-hours, about ' + hrs(d.crew.onSiteHours, 1) + ' hours on site\n\n' +
+    (scope ? 'Scope:\n' + scope + '\n\n' : '') +
+    (d.accessNotes ? 'Access: ' + d.accessNotes + '\n\n' : '') +
+    'Full details and photos are in the attached PDF.\n\n' +
+    co.name + '\n' + co.phone;
+  return { subject: subject, body: body, filename: null };
+}
+
+/* --- saving and sending ------------------------------------------------- */
+function saveWorkOrderPdf(quoteId) {
+  const q = byId(state.quotes, quoteId);
+  const pdf = generateWorkOrderPdf(q);
+  if (!pdf) { printWorkOrder(quoteId); return; }
+  if (isHostedViewer) {
+    if (!hostedDownloads || !hostedDownloads.save) {
+      toast('Saving files is not available in this hosted preview', 'bad');
+      return;
+    }
+    hostedDownloads.save({ filename: pdf.filename, data: pdf.blob }).then(
+      function () { toast('Work order PDF saved', 'good'); },
+      function (err) { toast(err && err.code === 'declined' ? 'Save cancelled' : 'Could not save the PDF here', 'bad'); }
+    );
+    return;
+  }
+  const url = URL.createObjectURL(pdf.blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = pdf.filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  toast('Work order PDF saved', 'good');
+}
+
+function shareWorkOrderPdf(quoteId, extra) {
+  const q = byId(state.quotes, quoteId);
+  const pdf = generateWorkOrderPdf(q);
+  if (!pdf) { toast('PDF generation is unavailable here', 'bad'); return false; }
+  if (!canShareFiles()) return false;
+  const file = new File([pdf.blob], pdf.filename, { type: 'application/pdf' });
+  const msg = buildWorkOrderMessage(q, extra);
+  navigator.share({ files: [file], title: msg.subject, text: msg.body }).then(function () {
+    recordCrewDispatch(q, 'share_sheet', 'Handed to the device share sheet with the work order attached.');
+    closeAllModals();
+    toast('Work order shared', 'good');
+    render();
+  }, function () { /* the user cancelled the share sheet */ });
+  return true;
+}
+
+/* A crew dispatch is logged like a client delivery, but separately — sending a
+   work order must never flip a quote to Sent. */
+function recordCrewDispatch(q, method, note) {
+  state.crewDispatches = state.crewDispatches || [];
+  state.crewDispatches.push({
+    id: uid('cd'), quoteId: q.id, method: method,
+    sentAt: new Date().toISOString(), note: note || ''
+  });
+  q.updatedAt = new Date().toISOString();
+  saveState();
+}
+function crewDispatchesFor(quoteId) {
+  return (state.crewDispatches || []).filter(function (x) { return x.quoteId === quoteId; })
+    .sort(function (a, b) { return b.sentAt.localeCompare(a.sentAt); });
+}
+
+ACTIONS.saveWorkOrder = function (d) { saveWorkOrderPdf(d.id); };
+ACTIONS.sendWorkOrder = function (d) {
+  const q = byId(state.quotes, d.id);
+  if (!q) return;
+  openModal({
+    title: 'Send work order to crew',
+    body: '<div class="notice">The PDF carries scope, hours, materials, access and photos. No pricing, no cost, no margin.</div>' +
+      fieldTextarea('woMsg', 'Message to the crew', '', { rows: 3, placeholder: 'e.g. Thursday 8am start, gate code 1432.' }) +
+      '<div class="hint">' + (canShareFiles()
+        ? 'Share opens your phone\'s share sheet with the PDF already attached — send it by message, mail or whatever the crew uses.'
+        : 'This browser cannot attach files to a share. Save the PDF and attach it yourself.') + '</div>',
+    footer: '<button class="btn" data-modal-close>Cancel</button>' +
+      '<button class="btn primary" data-act="doSendWorkOrder" data-id="' + q.id + '">' +
+      (canShareFiles() ? 'Share with PDF' : 'Save PDF') + '</button>'
+  });
+};
+ACTIONS.doSendWorkOrder = function (d) {
+  const extra = $('#woMsg') ? $('#woMsg').value.trim() : '';
+  if (!shareWorkOrderPdf(d.id, extra)) {
+    saveWorkOrderPdf(d.id);
+    const q = byId(state.quotes, d.id);
+    if (q) recordCrewDispatch(q, 'download', 'PDF saved for the crew — attach it manually.');
+    closeAllModals();
+    render();
+  }
+};
+/* ==========================================================================
    CUSTOMERS, CONTACTS, PROPERTIES
    ========================================================================== */
 let customerSearch = '';
@@ -5418,12 +6368,12 @@ VIEWS.customers = function () {
       return ([customerLabel(c), c.customerType].concat(cts.map(function (x) { return contactLabel(x) + ' ' + x.email + ' ' + x.phone; })).join(' ').toLowerCase()).indexOf(t) >= 0;
     });
   }
-  let html = '<div class="page-head"><h1>Customers</h1><div class="sub">' + state.customers.length + ' accounts · ' + state.contacts.length + ' contacts · ' + state.properties.length + ' properties</div></div>';
+  let html = '<div class="page-head"><h1>Clients</h1><div class="sub">' + state.customers.length + ' accounts · ' + state.contacts.length + ' contacts · ' + state.properties.length + ' properties</div></div>';
   html += '<div class="card"><div class="field search-wrap" style="margin-bottom:12px">' + icon('search', 18) +
-    '<input type="text" placeholder="Search customers and contacts" value="' + esc(customerSearch) + '" data-oninput="custListSearch" autocomplete="off"></div>' +
-    '<button class="btn primary block" data-act="newCustomerAdmin">' + icon('plus', 18) + ' New Customer</button></div>';
+    '<input type="text" placeholder="Search clients and contacts" value="' + esc(customerSearch) + '" data-oninput="custListSearch" autocomplete="off"></div>' +
+    '<button class="btn primary block" data-act="newCustomerAdmin">' + icon('plus', 18) + ' New Client</button></div>';
   if (!list.length) {
-    html += '<div class="card"><div class="empty"><div class="ico">' + icon('user', 24) + '</div><h3>No customers</h3><p class="small">Create one to get started.</p></div></div>';
+    html += '<div class="card"><div class="empty"><div class="ico">' + icon('user', 24) + '</div><h3>No clients</h3><p class="small">Create one to get started.</p></div></div>';
     return html;
   }
   html += '<div class="card flush"><div class="rows">' + list.map(function (c) {
@@ -5452,12 +6402,12 @@ INPUTS.custListSearch = function (d, el) {
 };
 ACTIONS.openCustomer = function (d) { go('customer', { id: d.id }); };
 ACTIONS.newCustomerAdmin = function () {
-  openCustomerForm(null, function (c) { toast('Customer created', 'good'); go('customer', { id: c.id }); }, { withProperty: true });
+  openCustomerForm(null, function (c) { toast('Client created', 'good'); go('customer', { id: c.id }); }, { withProperty: true });
 };
 
 VIEWS.customer = function (params) {
   const c = byId(state.customers, params.id);
-  if (!c) return '<div class="card"><div class="empty"><h3>Customer not found</h3></div></div>';
+  if (!c) return '<div class="card"><div class="empty"><h3>Client not found</h3></div></div>';
   const cts = state.contacts.filter(function (x) { return x.customerId === c.id; });
   const props = propertiesFor(c.id);
   const qs = state.quotes.filter(function (q) { return q.customerId === c.id; })
@@ -5497,7 +6447,7 @@ VIEWS.customer = function (params) {
 
   html += '<div class="section-title">Quotes</div>';
   html += qs.length ? '<div class="card flush"><div class="rows">' + qs.map(quoteRow).join('') + '</div></div>'
-    : '<div class="card"><p class="small muted">No quotes for this customer yet.</p></div>';
+    : '<div class="card"><p class="small muted">No quotes for this client yet.</p></div>';
   return html;
 };
 ACTIONS.quoteForCustomer = function (d) {
@@ -5505,7 +6455,7 @@ ACTIONS.quoteForCustomer = function (d) {
   ACTIONS.pickCustomer({ id: d.id });
 };
 ACTIONS.editCustomer = function (d) {
-  openCustomerForm(byId(state.customers, d.id), function () { toast('Customer updated', 'good'); render(); });
+  openCustomerForm(byId(state.customers, d.id), function () { toast('Client updated', 'good'); render(); });
 };
 ACTIONS.addContactAdmin = function (d) {
   openContactForm(d.cid, null, function () { toast('Contact added', 'good'); render(); });
@@ -5535,7 +6485,7 @@ function openCustomerForm(existing, onSave, opts) {
     withProperty: opts.withProperty !== false
   };
   openModal({
-    title: 'New customer',
+    title: 'New client',
     body: '<div id="custFormBody">' + customerFormBody(form) + '</div>',
     footer: '<button class="btn" data-modal-close>Cancel</button>' +
       '<button class="btn primary" data-act="saveCustomerForm">Save</button>',
@@ -5584,7 +6534,7 @@ function customerFormBody(form) {
       ' — an existing account with ' + contactsFor(joined.id).length + ' contact' + (contactsFor(joined.id).length === 1 ? '' : 's') + '.</span>' +
       '<button class="btn sm" data-leave-account>Not this one</button></div>';
   } else {
-    h += '<div class="lbl">Customer type</div><div class="chiprow mb-12" id="ctypeChips">' +
+    h += '<div class="lbl">Client type</div><div class="chiprow mb-12" id="ctypeChips">' +
       CUSTOMER_TYPES.map(function (t) {
         return '<button type="button" class="chip" data-pick="ctype" data-v="' + t + '" aria-pressed="' + (form.customerType === t) + '">' + t + '</button>';
       }).join('') + '</div>';
@@ -5706,8 +6656,8 @@ ACTIONS.saveCustomerForm = function () {
    edited as contacts. */
 function openCustomerEditForm(c, onSave) {
   openModal({
-    title: 'Edit customer',
-    body: '<div class="lbl">Customer type</div><div class="chiprow mb-12" id="ctypeChips">' +
+    title: 'Edit client',
+    body: '<div class="lbl">Client type</div><div class="chiprow mb-12" id="ctypeChips">' +
         CUSTOMER_TYPES.map(function (t) {
           return '<button type="button" class="chip" data-pick="ctype" data-v="' + t + '" aria-pressed="' + (c.customerType === t) + '">' + t + '</button>';
         }).join('') + '</div>' +
@@ -5804,7 +6754,7 @@ function openPropertyForm(customerId, existing, onSave) {
   openModal({
     title: existing ? 'Edit property' : 'New property',
     body: fieldText('pr_name', 'Property name', p.name, { required: true, placeholder: 'e.g. Clubhouse Campus' }) +
-      fieldText('pr_addr', 'Street address', p.address, { autocomplete: 'address-line1' }) +
+      addressFieldHTML(p) +
       '<div class="grid3">' +
         fieldText('pr_city', 'City', p.city) +
         fieldText('pr_state', 'State', p.state) +
@@ -5873,7 +6823,7 @@ VIEWS.services = function () {
 
   html += '<div class="card flush"><div class="tablewrap"><table class="data"><thead><tr>' +
     '<th>Code</th><th>Service</th><th>Venue</th><th>Conditions</th><th>Basis</th><th class="num">Rate</th><th class="num">Min</th>' +
-    '<th class="num">Production</th><th class="num">Setup</th><th class="num">Cleanup</th><th></th>' +
+    '<th class="num">Production</th><th class="num">$ / labor hr</th><th class="num">Setup</th><th class="num">Cleanup</th><th></th>' +
     '</tr></thead><tbody>' +
     list.map(function (s) {
       const b = basis(s.billingBasis);
@@ -5883,9 +6833,11 @@ VIEWS.services = function () {
         '<td><span class="badge ' + (s.venue === 'Interior' ? 'good' : (s.venue === 'Either' ? '' : 'brand')) + '">' + esc(s.venue || 'Exterior') + '</span></td>' +
         '<td><span class="tiny">' + esc(adjProfile(s.adjustmentProfile).label) + '</span></td>' +
         '<td>' + esc(b.label) + '</td>' +
-        '<td class="num">' + money(s.sellingRate) + '</td>' +
+        '<td class="num">' + money(serviceSellingRate(s)) +
+          (s.pricingMode === 'labor' ? '<br><span class="tiny muted">from ' + money0(laborBillingRate()) + '/hr</span>' : '') + '</td>' +
         '<td class="num">' + money0(s.minimumCharge) + '</td>' +
         '<td class="num">' + (s.productionRate ? qty(s.productionRate) + ' <span class="tiny muted">' + esc(s.unitLabel) + '/hr</span>' : '<span class="muted">—</span>') + '</td>' +
+        '<td class="num">' + impliedHourlyCell(s) + '</td>' +
         '<td class="num">' + hrs(s.setupHours) + '</td>' +
         '<td class="num">' + hrs(s.cleanupHours) + '</td>' +
         '<td class="num"><button class="btn sm" data-act="editService" data-id="' + s.id + '">Edit</button></td>' +
@@ -5899,6 +6851,37 @@ ACTIONS.svcCat = function (d) { serviceCat = d.c; render(); };
 ACTIONS.svcVenue = function (d) { serviceVenue = d.v; render(); };
 ACTIONS.newService = function () { openServiceForm(null); };
 ACTIONS.editService = function (d) { openServiceForm(byId(state.services, d.id)); };
+
+/* The implied revenue per labor hour, against the billing rate. This is the
+   yardstick that keeps unit-priced and labor-priced work honest side by side. */
+function impliedHourlyCell(s) {
+  const v = impliedHourlyRevenue(s);
+  if (v === null) return '<span class="muted">—</span>';
+  const target = laborBillingRate();
+  const cls = v < target ? 'warn' : '';
+  return '<span class="badge ' + cls + '">' + money0(v) + '</span>';
+}
+
+/* Spells out the arithmetic behind a labor-priced rate, so the production rate
+   is visibly the number doing the work. */
+function ratePreviewHTML(s) {
+  const b = basis(s.billingBasis);
+  const rate = serviceSellingRate(s);
+  if (s.pricingMode !== 'labor') {
+    const implied = impliedHourlyRevenue(s);
+    return '<span class="strong">Unit rate.</span> The entered rate is charged per ' + esc(s.unitLabel || b.unit) + '.' +
+      (implied === null ? '' : ' That works out to <span class="strong">' + money0(implied) + ' per labor hour</span> at this production rate.');
+  }
+  if (b.laborFromQuantity) {
+    return '<span class="strong">Charged at ' + money(laborBillingRate()) + ' / hour</span> — the billing rate from Settings. The entered rate above is ignored.';
+  }
+  if (num(s.productionRate) <= 0) {
+    return '<span class="strong">Needs a production rate.</span> Labor pricing divides the billing rate by production; with no production rate the entered rate is used instead.';
+  }
+  return '<span class="strong">' + money(laborBillingRate()) + ' / hour ÷ ' + qty(s.productionRate) + ' ' + esc(s.unitLabel || b.unit) + ' per hour = ' +
+    money(rate) + ' per ' + esc(s.unitLabel || b.unit) + '</span><br>' +
+    '<span class="tiny">The entered rate above is ignored. Change the production rate to change the price.</span>';
+}
 
 /* Shows, in plain words, exactly what an estimator will be asked for a service
    using this profile — so the choice is not guesswork. */
@@ -5920,15 +6903,19 @@ function openServiceForm(existing) {
         fieldSelect('sv_cat', 'Category', s.category, SERVICE_CATEGORIES) +
       '</div>' +
       fieldText('sv_name', 'Service name', s.name, { required: true }) +
-      fieldTextarea('sv_desc', 'Customer-facing description', s.description, { rows: 3 }) +
+      fieldTextarea('sv_desc', 'Client-facing description', s.description, { rows: 3 }) +
       '<div class="grid2">' +
         fieldSelect('sv_basis', 'Billing basis', s.billingBasis, Object.keys(BILLING_BASES).map(function (k) { return { value: k, label: BILLING_BASES[k].label }; })) +
         fieldText('sv_unit', 'Unit label', s.unitLabel) +
       '</div>' +
+      fieldSelect('sv_pricing', 'How this service is priced', s.pricingMode || 'unit',
+        PRICING_MODES.map(function (m) { return { value: m.id, label: m.label }; }),
+        { hint: 'Labor pricing derives the rate from the billing rate in Settings — use it where the client is buying a person\'s time.' }) +
       '<div class="grid2">' +
         fieldNumber('sv_rate', 'Default selling rate', s.sellingRate, { min: 0 }) +
         fieldNumber('sv_min', 'Minimum charge', s.minimumCharge, { min: 0 }) +
       '</div>' +
+      '<div class="notice" id="sv_rate_preview">' + ratePreviewHTML(s) + '</div>' +
       '<div class="grid2">' +
         fieldNumber('sv_prod', 'Production rate', s.productionRate, { min: 0, hint: 'Units per labor hour. 0 for hourly or flat services.' }) +
         fieldText('sv_prodb', 'Production rate basis', s.productionRateBasis) +
@@ -5953,6 +6940,21 @@ function openServiceForm(existing) {
         const box = $('#sv_profile_preview', root);
         if (box) box.innerHTML = profilePreviewHTML(sel.value);
       });
+      const refreshRate = function () {
+        const box = $('#sv_rate_preview', root);
+        if (!box) return;
+        box.innerHTML = ratePreviewHTML({
+          pricingMode: val('sv_pricing', root),
+          billingBasis: val('sv_basis', root),
+          unitLabel: val('sv_unit', root) || basis(val('sv_basis', root)).unit,
+          sellingRate: num(val('sv_rate', root)),
+          productionRate: num(val('sv_prod', root))
+        });
+      };
+      ['sv_pricing', 'sv_basis', 'sv_rate', 'sv_prod', 'sv_unit'].forEach(function (id) {
+        const el = $('#' + id, root);
+        if (el) { el.addEventListener('change', refreshRate); el.addEventListener('input', refreshRate); }
+      });
     }
   });
 }
@@ -5973,6 +6975,7 @@ ACTIONS.saveServiceForm = function () {
   s.category = val('sv_cat', root);
   s.venue = val('sv_venue', root) || s.venue || 'Exterior';
   s.adjustmentProfile = val('sv_profile', root) || 'general';
+  s.pricingMode = val('sv_pricing', root) || 'unit';
   s.description = val('sv_desc', root);
   s.billingBasis = val('sv_basis', root);
   s.unitLabel = val('sv_unit', root) || basis(s.billingBasis).unit;
@@ -6074,7 +7077,7 @@ VIEWS.settings = function () {
   html += '<div class="card"><div class="card-head"><h3>Quote defaults</h3></div>' +
     '<div class="grid2">' + fieldText('se_prefix', 'Quote number prefix', s.quote.prefix, { hint: 'Format: PREFIX-YEAR-0000' }) +
       fieldNumber('se_valid', 'Default validity (days)', s.quote.validityDays, { min: 1 }) + '</div>' +
-    fieldTextarea('se_note', 'Default customer note', s.quote.defaultCustomerNote, { rows: 3 }) +
+    fieldTextarea('se_note', 'Default client note', s.quote.defaultCustomerNote, { rows: 3 }) +
     fieldTextarea('se_assume', 'Default assumptions (one per line)', s.quote.defaultAssumptions, { rows: 5 }) +
     fieldTextarea('se_excl', 'Default exclusions (one per line)', s.quote.defaultExclusions, { rows: 5 }) +
     fieldTextarea('se_terms', 'Default terms (one per line)', s.quote.defaultTerms, { rows: 4 }) +
@@ -6097,7 +7100,13 @@ VIEWS.settings = function () {
       fieldNumber('se_misc', 'Default miscellaneous cost allowance', s.economics.miscAllowance, { min: 0 }) +
       fieldNumber('se_target', 'Target contribution margin (%)', s.economics.targetMargin, { min: 0, hint: 'A benchmark warning only. It never forces a price.' }) +
     '</div>' +
+    '<div class="grid2">' +
+      fieldNumber('se_bill', 'Labor billing rate ($ / labor hour)', s.economics.laborBillingRate, { min: 0, hint: 'What an hour of labor is CHARGED at — labor plus company overhead. Services set to labor pricing bill every labor hour at this rate.' }) +
+      fieldNumber('se_matmark', 'Material markup on labor-priced work (%)', s.economics.materialMarkup, { min: 0, hint: 'Materials are billed on top of the labor rate. 0 passes them through at cost.' }) +
+    '</div>' +
   '</div>';
+
+  html += renderAddressSettings();
 
   html += '<div class="card"><div class="card-head"><h3>Rate status</h3>' +
     (s.economics.ratesConfirmed ? '<span class="badge good">Confirmed</span>' : '<span class="badge warn">Sample rates</span>') + '</div>' +
@@ -6136,8 +7145,8 @@ VIEWS.settings = function () {
   '</div>';
 
   html += '<div class="card"><div class="card-head"><h3>Accounting readiness</h3></div>' +
-    '<p class="small muted">QuickBooks is <strong>not</strong> connected in this prototype and no buttons here pretend otherwise. Every customer, service, material and quote already carries a permanent internal ID plus an empty <span class="tag">externalLinks</span> slot so the production version can map:</p>' +
-    '<div class="kv sub"><span class="k">Customer</span><span class="v">QuickBooks Customer</span></div>' +
+    '<p class="small muted">QuickBooks is <strong>not</strong> connected in this prototype and no buttons here pretend otherwise. Every client, service, material and quote already carries a permanent internal ID plus an empty <span class="tag">externalLinks</span> slot so the production version can map:</p>' +
+    '<div class="kv sub"><span class="k">Client</span><span class="v">QuickBooks Customer</span></div>' +
     '<div class="kv sub"><span class="k">Service (by serviceCode)</span><span class="v">Product / Service Item</span></div>' +
     '<div class="kv sub"><span class="k">Quote</span><span class="v">Estimate</span></div>' +
     '<div class="kv sub"><span class="k">Accepted quote</span><span class="v">Invoice, when appropriate</span></div>' +
@@ -6266,7 +7275,7 @@ ACTIONS.saveSettings = function () {
   if (ratesBox) s.economics.ratesConfirmed = ratesBox.checked;
   if (num(val('se_workday')) < 1) { setErr('se_workday', 'A work day has to be at least 1 hour'); return; }
   readLaborSettingsFields();
-  const nums = { equipmentCostPerHour: 'se_equip', travelCostPerMile: 'se_mile', miscAllowance: 'se_misc', targetMargin: 'se_target' };
+  const nums = { equipmentCostPerHour: 'se_equip', travelCostPerMile: 'se_mile', miscAllowance: 'se_misc', targetMargin: 'se_target', laborBillingRate: 'se_bill', materialMarkup: 'se_matmark' };
   let bad = null;
   Object.keys(nums).forEach(function (k) {
     const x = num(val(nums[k]));
@@ -6309,7 +7318,7 @@ ACTIONS.importData = function () {
 ACTIONS.resetDemo = function () {
   confirmDialog({
     title: 'Reset demo data?',
-    message: 'Every customer, quote and setting in this browser is replaced with the original demo set.',
+    message: 'Every client, quote and setting in this browser is replaced with the original demo set.',
     detail: 'This cannot be undone. Export a backup first if you want to keep this work.',
     confirmLabel: 'Reset everything', danger: true
   }).then(function (ok) {
@@ -6319,6 +7328,190 @@ ACTIONS.resetDemo = function () {
     historyStack.length = 0;
     go('dashboard', {}, true);
   });
+};
+/* ==========================================================================
+   ADDRESS LOOKUP
+   Optional. The API key is entered in Settings and lives in this browser's
+   local storage — it is never part of the file, so the published page carries
+   no credential for anyone to scrape. Without a key the address fields behave
+   exactly as they always have: plain text you type.
+
+   Every failure path falls back to typing. A network hiccup, an exhausted
+   quota or a wrong key must never stop someone entering an address at a door.
+   ========================================================================== */
+
+const ADDRESS_PROVIDERS = {
+  geoapify: {
+    id: 'geoapify',
+    label: 'Geoapify',
+    signupUrl: 'https://www.geoapify.com/',
+    /* Free tier is generous and has a hard ceiling with no card attached, so
+       an abused key fails closed rather than billing anyone. */
+    url: function (key, text, country) {
+      return 'https://api.geoapify.com/v1/geocode/autocomplete' +
+        '?text=' + encodeURIComponent(text) +
+        '&format=json&limit=6' +
+        (country ? '&filter=countrycode:' + encodeURIComponent(String(country).toLowerCase()) : '') +
+        '&apiKey=' + encodeURIComponent(key);
+    },
+    parse: function (json) {
+      return ((json && json.results) || []).map(function (r) {
+        const street = [r.housenumber, r.street].filter(Boolean).join(' ') || r.address_line1 || '';
+        return {
+          label: r.formatted || [street, r.city, r.state_code, r.postcode].filter(Boolean).join(', '),
+          address: street,
+          city: r.city || r.county || '',
+          state: r.state_code || r.state || '',
+          zip: r.postcode || '',
+          lat: r.lat, lon: r.lon
+        };
+      }).filter(function (x) { return !!x.label; });
+    }
+  }
+};
+
+function addressLookupConfig() {
+  const s = (state.settings && state.settings.integrations && state.settings.integrations.addressLookup) || {};
+  return {
+    provider: s.provider || 'geoapify',
+    apiKey: String(s.apiKey || '').trim(),
+    country: s.country === undefined ? 'us' : String(s.country || '').trim()
+  };
+}
+function addressLookupEnabled() {
+  const c = addressLookupConfig();
+  return !!(c.apiKey && ADDRESS_PROVIDERS[c.provider]);
+}
+
+/* One in-flight request at a time; a stale response never overwrites a newer
+   one, which is what makes type-ahead feel right rather than jumpy. */
+let addrSeq = 0;
+function searchAddresses(text) {
+  const cfg = addressLookupConfig();
+  const prov = ADDRESS_PROVIDERS[cfg.provider];
+  const q = String(text || '').trim();
+  if (!prov || !cfg.apiKey || q.length < 3) return Promise.resolve({ results: [], skipped: true });
+  const seq = ++addrSeq;
+  return fetch(prov.url(cfg.apiKey, q, cfg.country))
+    .then(function (r) {
+      if (!r.ok) throw new Error('lookup_' + r.status);
+      return r.json();
+    })
+    .then(function (j) { return { results: prov.parse(j), stale: seq !== addrSeq }; })
+    .catch(function (e) { return { results: [], error: String(e && e.message || e), stale: seq !== addrSeq }; });
+}
+
+/* --- the field ---------------------------------------------------------- */
+function addressFieldHTML(p) {
+  const on = addressLookupEnabled();
+  return '<div class="field addr-field">' +
+    '<label for="pr_addr">Street address</label>' +
+    '<input type="text" id="pr_addr" value="' + esc(p.address) + '" autocomplete="address-line1"' +
+      (on ? ' data-oninput="addrSearch" placeholder="Start typing — real addresses only" role="combobox" aria-expanded="false" aria-autocomplete="list" aria-controls="addrResults"' : '') + '>' +
+    (on ? '<div class="addr-results" id="addrResults" role="listbox" hidden></div>' +
+          '<div class="hint" id="addrHint">Pick a suggestion to fill city, state and ZIP.</div>' : '') +
+    '<div class="err-msg" id="pr_addr_err" hidden></div>' +
+  '</div>';
+}
+
+let addrTimer = null;
+let addrMatches = [];
+INPUTS.addrSearch = function (d, el) {
+  const box = document.getElementById('addrResults');
+  const hint = document.getElementById('addrHint');
+  if (!box) return;
+  clearTimeout(addrTimer);
+  const text = el.value;
+  if (String(text).trim().length < 3) {
+    box.hidden = true; box.innerHTML = ''; addrMatches = [];
+    if (hint) hint.textContent = 'Pick a suggestion to fill city, state and ZIP.';
+    return;
+  }
+  /* Debounced so one typed address is a handful of requests, not thirty. */
+  addrTimer = setTimeout(function () {
+    if (hint) hint.textContent = 'Searching…';
+    searchAddresses(text).then(function (res) {
+      if (res.stale) return;
+      const live = document.getElementById('addrResults');
+      const liveHint = document.getElementById('addrHint');
+      if (!live) return;
+      addrMatches = res.results;
+      if (res.error) {
+        live.hidden = true; live.innerHTML = '';
+        if (liveHint) liveHint.textContent = 'Address lookup is unavailable right now — type the address instead.';
+        return;
+      }
+      if (!res.results.length) {
+        live.hidden = true; live.innerHTML = '';
+        if (liveHint) liveHint.textContent = 'No match. Keep typing, or enter it by hand.';
+        return;
+      }
+      live.innerHTML = res.results.map(function (r, i) {
+        return '<button type="button" class="addr-opt" role="option" data-act="addrPick" data-i="' + i + '">' + esc(r.label) + '</button>';
+      }).join('');
+      live.hidden = false;
+      if (liveHint) liveHint.textContent = 'Pick a suggestion to fill city, state and ZIP.';
+    });
+  }, 350);
+};
+
+ACTIONS.addrPick = function (d) {
+  const m = addrMatches[parseInt(d.i, 10)];
+  if (!m) return;
+  const root = modalStack[modalStack.length - 1] || document;
+  const set = function (id, v) { const el = $('#' + id, root); if (el && v) el.value = v; };
+  set('pr_addr', m.address || m.label);
+  set('pr_city', m.city);
+  set('pr_state', m.state);
+  set('pr_zip', m.zip);
+  if (root.__entity) { root.__entity.lat = m.lat; root.__entity.lon = m.lon; }
+  const box = document.getElementById('addrResults');
+  if (box) { box.hidden = true; box.innerHTML = ''; }
+  const hint = document.getElementById('addrHint');
+  if (hint) hint.textContent = 'Address filled from the lookup.';
+  addrMatches = [];
+};
+
+/* --- settings ------------------------------------------------------------ */
+function renderAddressSettings() {
+  const cfg = addressLookupConfig();
+  const on = addressLookupEnabled();
+  return '<div class="card"><div class="card-head"><h3>Address lookup</h3>' +
+    (on ? '<span class="badge good">On</span>' : '<span class="badge">Off — type addresses</span>') + '</div>' +
+    '<p class="small muted">Optional. With a key, the property address field searches real addresses and fills city, state and ZIP, so a typo cannot reach a quote or a crew sheet. Without one, nothing changes — you type the address as you do now.</p>' +
+    '<div class="notice">The key is stored <strong>in this browser only</strong>. It is never part of the app file, so the published page carries no key for anyone to find. Enter it once per device. It travels in your JSON backup.</div>' +
+    fieldText('se_addrkey', 'Geoapify API key', cfg.apiKey, { placeholder: 'Paste your key', hint: 'Free account at geoapify.com — no card required.' }) +
+    fieldText('se_addrcountry', 'Limit to country code', cfg.country, { placeholder: 'us', hint: 'Two-letter code. Leave blank to search worldwide.' }) +
+    '<div class="btn-row"><button class="btn" data-act="testAddressKey">Test the key</button>' +
+      (on ? '<button class="btn danger" data-act="clearAddressKey">Remove key</button>' : '') + '</div>' +
+    '<div id="addrTestOut" class="hint"></div>' +
+  '</div>';
+}
+ACTIONS.testAddressKey = function () {
+  const key = val('se_addrkey').trim();
+  const country = val('se_addrcountry').trim();
+  const out = $('#addrTestOut');
+  if (!key) { if (out) out.textContent = 'Enter a key first.'; return; }
+  /* Save before testing, so a working key is kept even if the user navigates away. */
+  state.settings.integrations = state.settings.integrations || {};
+  state.settings.integrations.addressLookup = { provider: 'geoapify', apiKey: key, country: country };
+  saveState();
+  if (out) out.textContent = 'Testing…';
+  searchAddresses('1600 Pennsylvania Ave').then(function (res) {
+    if (!out) return;
+    if (res.error) { out.textContent = 'That did not work: ' + res.error + '. Check the key, or carry on typing addresses.'; return; }
+    out.textContent = res.results.length
+      ? 'Working — ' + res.results.length + ' suggestion' + (res.results.length === 1 ? '' : 's') + ' came back. Address lookup is on.'
+      : 'The key was accepted but returned no suggestions. Check the country code.';
+    render();
+  });
+};
+ACTIONS.clearAddressKey = function () {
+  state.settings.integrations = state.settings.integrations || {};
+  state.settings.integrations.addressLookup = { provider: 'geoapify', apiKey: '', country: 'us' };
+  saveState();
+  toast('Address lookup turned off', 'good');
+  render();
 };
 /* ==========================================================================
    PROPERTY PHOTOS
