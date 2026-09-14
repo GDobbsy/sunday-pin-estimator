@@ -1703,14 +1703,19 @@ function defaultSettings() {
     },
     /* Optional outside services. Keys live in this browser, never in the file. */
     integrations: {
-      addressLookup: { provider: 'geoapify', apiKey: '', country: 'us' }
+      addressLookup: { provider: 'geoapify', apiKey: '', country: 'us' },
+      /* Publishable key — safe in the file. Row Level Security makes the
+         sign-in the boundary, not the key. */
+      cloud: { url: 'https://ffhlidmtsqntquqgciyx.supabase.co',
+               anonKey: 'sb_publishable_D1ASLK2dwt5zsyBGEegD3Q_he3jSSNU',
+               workspace: 'sundaypin' }
     }
   };
 }
 
 function blankState() {
   return {
-    meta: { version: APP.version, quoteSeq: 0, seededAt: null, lastExportAt: null },
+    meta: { version: APP.version, quoteSeq: 0, seededAt: null, lastExportAt: null, lastCloudAt: null },
     settings: defaultSettings(),
     customers: [],
     contacts: [],
@@ -2008,6 +2013,32 @@ function syncCatalog(st) {
     const seed = SERVICE_SEED.find(function (r) { return r[0] === s.serviceCode; });
     s.pricingMode = (seed && seed[13]) || 'unit';
   });
+}
+
+/* --- how safe is the local copy ----------------------------------------- */
+let storagePersisted = null;          // null = unknown / not asked yet
+function requestPersistentStorage() {
+  try {
+    if (!navigator.storage || !navigator.storage.persist) return;
+    navigator.storage.persisted().then(function (already) {
+      if (already) { storagePersisted = true; return; }
+      return navigator.storage.persist().then(function (granted) { storagePersisted = !!granted; });
+    }).catch(function () { /* unsupported — the backup warning still stands */ });
+  } catch (e) { /* ignore */ }
+}
+/* Standalone (Home Screen) web apps are exempt from Safari's 7-day storage
+   deletion; a tab in Safari is not. */
+function isStandaloneApp() {
+  try {
+    return !!(window.navigator.standalone ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches));
+  } catch (e) { return false; }
+}
+function isIOS() {
+  try {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  } catch (e) { return false; }
 }
 
 function svcByCode(code) {
@@ -2974,6 +3005,17 @@ VIEWS.dashboard = function () {
       'Labor, selling and production rates are placeholders — any quote priced now will be wrong. ' +
       'Set them, then confirm in Settings.</span>' +
       '<button class="btn sm" data-act="nav" data-nav="settings">Set rates</button></div>';
+  }
+
+  /* Safari wipes a website's storage after 7 days without interaction. A Home
+     Screen web app is exempt. This is the single biggest risk to real quotes
+     living in this browser, so it is said plainly and only where it applies. */
+  if (isIOS() && !isStandaloneApp() && state.quotes.length) {
+    html += '<div class="notice warn" id="homeScreenBanner" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">' +
+      '<span style="flex:1;min-width:200px"><strong>Add this to your Home Screen.</strong> ' +
+      'Safari deletes a website\'s stored data after about a week without opening it — a Home Screen app is exempt. ' +
+      'Tap Share, then <strong>Add to Home Screen</strong>, and use it from there.</span>' +
+      '<button class="btn sm" data-act="exportData">' + icon('download', 15) + ' Back up now</button></div>';
   }
 
   const backup = unbackedUpWork();
@@ -6883,6 +6925,29 @@ function ratePreviewHTML(s) {
     '<span class="tiny">The entered rate above is ignored. Change the production rate to change the price.</span>';
 }
 
+/* Says out loud how safe the only copy of the data actually is. */
+function renderDataSafetyCard() {
+  const standalone = isStandaloneApp();
+  const persisted = storagePersisted;
+  const backup = unbackedUpWork();
+  let h = '<div class="card"><div class="card-head"><h3>Where your data lives</h3>' +
+    (standalone ? '<span class="badge good">Home Screen app</span>' : '<span class="badge warn">Browser tab</span>') + '</div>';
+  h += '<p class="small muted">Everything — quotes, clients, photos, rates — is stored in this browser on this device. It is not on a server and it is not shared with anyone else\'s device.</p>';
+  h += '<div class="kv"><span class="k">Running as</span><span class="v">' + (standalone ? 'Home Screen app' : 'Browser tab') + '</span></div>';
+  h += '<div class="kv"><span class="k">Storage marked persistent</span><span class="v">' +
+    (persisted === true ? 'Yes' : (persisted === false ? 'Not granted' : 'Unknown')) + '</span></div>';
+  h += '<div class="kv"><span class="k">Last backup</span><span class="v">' +
+    (backup.lastExportAt ? fmtDate(backup.lastExportAt) : 'Never') + '</span></div>';
+  if (isIOS() && !standalone) {
+    h += '<div class="notice warn"><strong>Safari deletes website data after about a week without use.</strong> ' +
+      'Add this page to your Home Screen (Share → Add to Home Screen) and work from that icon — Home Screen apps are exempt. ' +
+      'Note that the Home Screen app starts with its own empty copy, so export a backup here first and import it there.</div>';
+  }
+  h += '<p class="small muted">Until quotes sync to a server, the JSON backup is the only thing standing between you and losing a week of work. Export after every session that matters.</p>';
+  h += '</div>';
+  return h;
+}
+
 /* Shows, in plain words, exactly what an estimator will be asked for a service
    using this profile — so the choice is not guesswork. */
 function profilePreviewHTML(profileId) {
@@ -7105,6 +7170,10 @@ VIEWS.settings = function () {
       fieldNumber('se_matmark', 'Material markup on labor-priced work (%)', s.economics.materialMarkup, { min: 0, hint: 'Materials are billed on top of the labor rate. 0 passes them through at cost.' }) +
     '</div>' +
   '</div>';
+
+  html += renderDataSafetyCard();
+
+  html += renderCloudCard();
 
   html += renderAddressSettings();
 
@@ -7761,12 +7830,363 @@ function storageEstimate() {
   }).catch(function () { return null; });
 }
 /* ==========================================================================
+   CLOUD SNAPSHOTS (Supabase)
+   A snapshot is the whole app state pushed to Supabase under a shared team
+   workspace. Two jobs at once:
+     1. Your data exists somewhere other than one phone.
+     2. Jeremy can pull your snapshot and see your real quotes, not demo data.
+
+   Deliberately NOT sync. There is no merge and no conflict resolution — a
+   snapshot is a point in time, taken by a named person, restored on purpose.
+   Pretending otherwise is how two people quietly overwrite each other.
+
+   The publishable key is safe in this file: it grants nothing on its own.
+   Row Level Security requires a signed-in user for every read and write, so
+   the sign-in is the boundary, not the key.
+   ========================================================================== */
+
+const CLOUD_DEFAULTS = {
+  url: 'https://ffhlidmtsqntquqgciyx.supabase.co',
+  anonKey: 'sb_publishable_D1ASLK2dwt5zsyBGEegD3Q_he3jSSNU',
+  workspace: 'sundaypin'
+};
+const CLOUD_SESSION_KEY = 'sundaypin.cloud.session.v1';
+
+function cloudConfig() {
+  const c = (state.settings && state.settings.integrations && state.settings.integrations.cloud) || {};
+  return {
+    url: String(c.url || CLOUD_DEFAULTS.url).replace(/\/+$/, ''),
+    anonKey: String(c.anonKey || CLOUD_DEFAULTS.anonKey).trim(),
+    workspace: String(c.workspace || CLOUD_DEFAULTS.workspace).trim() || 'sundaypin'
+  };
+}
+function cloudConfigured() {
+  const c = cloudConfig();
+  return !!(c.url && c.anonKey);
+}
+
+/* --- session ------------------------------------------------------------- */
+let cloudSession = null;
+function loadCloudSession() {
+  try {
+    const raw = localStorage.getItem(CLOUD_SESSION_KEY);
+    cloudSession = raw ? JSON.parse(raw) : null;
+  } catch (e) { cloudSession = null; }
+  return cloudSession;
+}
+function saveCloudSession(s) {
+  cloudSession = s;
+  try {
+    if (s) localStorage.setItem(CLOUD_SESSION_KEY, JSON.stringify(s));
+    else localStorage.removeItem(CLOUD_SESSION_KEY);
+  } catch (e) { /* storage full or blocked — the session just will not persist */ }
+}
+function cloudSignedIn() { return !!(cloudSession && cloudSession.access_token); }
+function cloudUserEmail() { return cloudSession && cloudSession.email ? cloudSession.email : ''; }
+
+/* --- transport ----------------------------------------------------------- */
+function cloudFetch(path, opts, retryOnExpired) {
+  const c = cloudConfig();
+  opts = opts || {};
+  const headers = Object.assign({
+    'apikey': c.anonKey,
+    'Content-Type': 'application/json'
+  }, opts.headers || {});
+  if (cloudSession && cloudSession.access_token) {
+    headers['Authorization'] = 'Bearer ' + cloudSession.access_token;
+  }
+  return fetch(c.url + path, Object.assign({}, opts, { headers: headers }))
+    .then(function (r) {
+      /* An expired token is the common case after a few hours. Refresh once,
+         silently, and retry — never make someone sign in again mid-quote. */
+      if (r.status === 401 && retryOnExpired !== false && cloudSession && cloudSession.refresh_token) {
+        return cloudRefresh().then(function (ok) {
+          if (!ok) return r;
+          return cloudFetch(path, opts, false);
+        });
+      }
+      return r;
+    });
+}
+function cloudJson(r) {
+  return r.text().then(function (t) {
+    let body = null;
+    try { body = t ? JSON.parse(t) : null; } catch (e) { body = { raw: t }; }
+    if (!r.ok) {
+      const msg = (body && (body.message || body.error_description || body.error || body.msg)) || ('HTTP ' + r.status);
+      const err = new Error(msg);
+      err.status = r.status;
+      throw err;
+    }
+    return body;
+  });
+}
+
+function cloudRefresh() {
+  const c = cloudConfig();
+  if (!cloudSession || !cloudSession.refresh_token) return Promise.resolve(false);
+  return fetch(c.url + '/auth/v1/token?grant_type=refresh_token', {
+    method: 'POST',
+    headers: { 'apikey': c.anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: cloudSession.refresh_token })
+  }).then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (j) {
+      if (!j || !j.access_token) { saveCloudSession(null); return false; }
+      saveCloudSession({
+        access_token: j.access_token,
+        refresh_token: j.refresh_token,
+        email: (j.user && j.user.email) || cloudUserEmail()
+      });
+      return true;
+    })
+    .catch(function () { return false; });
+}
+
+/* --- auth ---------------------------------------------------------------- */
+function cloudSignIn(email, password) {
+  const c = cloudConfig();
+  return fetch(c.url + '/auth/v1/token?grant_type=password', {
+    method: 'POST',
+    headers: { 'apikey': c.anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password })
+  }).then(cloudJson).then(function (j) {
+    saveCloudSession({
+      access_token: j.access_token,
+      refresh_token: j.refresh_token,
+      email: (j.user && j.user.email) || email
+    });
+    return true;
+  });
+}
+function cloudSignUp(email, password) {
+  const c = cloudConfig();
+  return fetch(c.url + '/auth/v1/signup', {
+    method: 'POST',
+    headers: { 'apikey': c.anonKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: email, password: password })
+  }).then(cloudJson).then(function (j) {
+    /* With email confirmation on, there is no session yet — that is not a failure. */
+    if (j && j.access_token) {
+      saveCloudSession({ access_token: j.access_token, refresh_token: j.refresh_token, email: email });
+      return { signedIn: true };
+    }
+    return { signedIn: false, needsConfirmation: true };
+  });
+}
+function cloudSignOut() {
+  saveCloudSession(null);
+}
+
+/* --- snapshots ----------------------------------------------------------- */
+/* Photo images live in IndexedDB and can run to many megabytes, so they are
+   NOT part of a cloud snapshot — the JSON file export is what carries those.
+   Everything else goes: quotes, clients, properties, services, rates, settings. */
+function cloudSnapshotBody(label) {
+  const c = cloudConfig();
+  const payload = JSON.parse(JSON.stringify(state));
+  delete payload.photoBlobs;
+  return {
+    workspace: c.workspace,
+    author_email: cloudUserEmail(),
+    label: label || '',
+    app_version: APP.version,
+    data: payload
+  };
+}
+function cloudPush(label) {
+  if (!cloudSignedIn()) return Promise.reject(new Error('Sign in first'));
+  return cloudFetch('/rest/v1/snapshots', {
+    method: 'POST',
+    headers: { 'Prefer': 'return=representation' },
+    body: JSON.stringify(cloudSnapshotBody(label))
+  }).then(cloudJson).then(function (rows) {
+    state.meta.lastCloudAt = new Date().toISOString();
+    saveState();
+    return (rows && rows[0]) || null;
+  });
+}
+function cloudList(limit) {
+  if (!cloudSignedIn()) return Promise.reject(new Error('Sign in first'));
+  const c = cloudConfig();
+  return cloudFetch('/rest/v1/snapshots?select=id,label,author_email,app_version,created_at' +
+    '&workspace=eq.' + encodeURIComponent(c.workspace) +
+    '&order=created_at.desc&limit=' + (limit || 20), { method: 'GET' }).then(cloudJson);
+}
+function cloudPull(id) {
+  if (!cloudSignedIn()) return Promise.reject(new Error('Sign in first'));
+  return cloudFetch('/rest/v1/snapshots?select=data&id=eq.' + encodeURIComponent(id), { method: 'GET' })
+    .then(cloudJson).then(function (rows) {
+      if (!rows || !rows.length) throw new Error('That snapshot is gone');
+      return rows[0].data;
+    });
+}
+function cloudDelete(id) {
+  return cloudFetch('/rest/v1/snapshots?id=eq.' + encodeURIComponent(id), { method: 'DELETE' })
+    .then(function (r) { if (!r.ok && r.status !== 204) throw new Error('Could not delete that snapshot'); return true; });
+}
+/* Cheapest possible proof that URL, key, table and policies are all right. */
+function cloudTest() {
+  const c = cloudConfig();
+  return fetch(c.url + '/auth/v1/settings', { headers: { 'apikey': c.anonKey } })
+    .then(function (r) {
+      if (!r.ok) throw new Error('The project URL or key is wrong (HTTP ' + r.status + ')');
+      return cloudSignedIn() ? cloudList(1).then(function () { return 'signed_in'; }) : 'reachable';
+    });
+}
+
+/* ==========================================================================
+   UI
+   ========================================================================== */
+function renderCloudCard() {
+  const cfg = cloudConfig();
+  const signedIn = cloudSignedIn();
+  let h = '<div class="card"><div class="card-head"><h3>Cloud snapshots</h3>' +
+    (signedIn ? '<span class="badge good">Signed in</span>' : '<span class="badge warn">Signed out</span>') + '</div>';
+
+  h += '<p class="small muted">Push a copy of everything to Supabase so it exists somewhere other than this device — and so your partner can pull it and see your real quotes instead of demo data.</p>';
+  h += '<div class="notice">This is a snapshot, not sync. Pulling <strong>replaces</strong> everything on this device with the snapshot you picked. Nothing merges. Photos stay local — use the JSON backup for those.</div>';
+
+  if (!signedIn) {
+    h += '<div class="grid2">' +
+      fieldText('cl_email', 'Email', '', { placeholder: 'you@example.com', autocomplete: 'username' }) +
+      '<div class="field"><label for="cl_pw">Password</label>' +
+        '<input type="password" id="cl_pw" autocomplete="current-password"></div>' +
+    '</div>' +
+    '<div class="btn-row"><button class="btn primary" data-act="cloudSignIn">Sign in</button>' +
+      '<button class="btn" data-act="cloudSignUp">Create account</button></div>' +
+    '<div class="hint" id="cloudMsg">Both of you sign in here with your own email. Nothing is readable without an account.</div>';
+  } else {
+    h += '<div class="kv"><span class="k">Signed in as</span><span class="v">' + esc(cloudUserEmail()) + '</span></div>' +
+      '<div class="kv"><span class="k">Last pushed</span><span class="v">' +
+        (state.meta.lastCloudAt ? fmtDate(state.meta.lastCloudAt) : 'Never') + '</span></div>' +
+      fieldText('cl_label', 'Label this snapshot', '', { placeholder: 'e.g. after Thursday quotes' }) +
+      '<div class="btn-row">' +
+        '<button class="btn primary" data-act="cloudPush">' + icon('upload', 17) + ' Push snapshot</button>' +
+        '<button class="btn" data-act="cloudBrowse">' + icon('download', 17) + ' Browse &amp; restore</button>' +
+        '<button class="btn ghost" data-act="cloudSignOut">Sign out</button>' +
+      '</div>' +
+      '<div class="hint" id="cloudMsg"></div>';
+  }
+
+  h += '<details class="disclosure mt-12"><summary>Connection details</summary>' +
+    fieldText('cl_url', 'Project URL', cfg.url) +
+    fieldText('cl_key', 'Publishable key', cfg.anonKey, { hint: 'Safe to be public — access is controlled by sign-in, not by this key.' }) +
+    fieldText('cl_ws', 'Workspace', cfg.workspace, { hint: 'Everyone using the same workspace sees the same snapshots.' }) +
+    '<div class="btn-row"><button class="btn" data-act="cloudSaveConfig">Save</button>' +
+      '<button class="btn" data-act="cloudTest">Test connection</button></div>' +
+    '</details>';
+  h += '</div>';
+  return h;
+}
+
+function cloudMsg(text, bad) {
+  const el = $('#cloudMsg');
+  if (el) { el.textContent = text; el.style.color = bad ? 'var(--bad-700, #a3372c)' : ''; }
+}
+
+ACTIONS.cloudSaveConfig = function () {
+  state.settings.integrations = state.settings.integrations || {};
+  state.settings.integrations.cloud = {
+    url: val('cl_url').trim(), anonKey: val('cl_key').trim(), workspace: val('cl_ws').trim() || 'sundaypin'
+  };
+  saveState();
+  toast('Connection saved', 'good');
+  render();
+};
+ACTIONS.cloudTest = function () {
+  cloudMsg('Testing…');
+  cloudTest().then(function (r) {
+    cloudMsg(r === 'signed_in'
+      ? 'Working — project reachable and the snapshots table is readable.'
+      : 'Project reachable. Sign in to read or write snapshots.');
+  }, function (e) { cloudMsg(String(e.message || e), true); });
+};
+ACTIONS.cloudSignIn = function () {
+  const email = val('cl_email').trim(), pw = ($('#cl_pw') || {}).value || '';
+  if (!email || !pw) { cloudMsg('Enter an email and password.', true); return; }
+  cloudMsg('Signing in…');
+  cloudSignIn(email, pw).then(function () {
+    toast('Signed in', 'good');
+    render();
+  }, function (e) { cloudMsg(String(e.message || e), true); });
+};
+ACTIONS.cloudSignUp = function () {
+  const email = val('cl_email').trim(), pw = ($('#cl_pw') || {}).value || '';
+  if (!email || pw.length < 8) { cloudMsg('Enter an email and a password of at least 8 characters.', true); return; }
+  cloudMsg('Creating the account…');
+  cloudSignUp(email, pw).then(function (r) {
+    if (r.needsConfirmation) { cloudMsg('Account created. Check your email to confirm it, then sign in.'); return; }
+    toast('Account created', 'good');
+    render();
+  }, function (e) { cloudMsg(String(e.message || e), true); });
+};
+ACTIONS.cloudSignOut = function () {
+  cloudSignOut();
+  toast('Signed out', 'good');
+  render();
+};
+ACTIONS.cloudPush = function () {
+  const label = val('cl_label').trim();
+  cloudMsg('Pushing…');
+  cloudPush(label).then(function () {
+    cloudMsg('Pushed. ' + state.quotes.length + ' quote' + (state.quotes.length === 1 ? '' : 's') + ' are now off this device.');
+    toast('Snapshot pushed', 'good');
+    render();
+  }, function (e) { cloudMsg(String(e.message || e), true); });
+};
+ACTIONS.cloudBrowse = function () {
+  cloudMsg('Loading…');
+  cloudList(20).then(function (rows) {
+    cloudMsg('');
+    openModal({
+      title: 'Snapshots',
+      body: (!rows.length
+        ? '<div class="empty"><h3>No snapshots yet</h3><p class="small">Push one first.</p></div>'
+        : '<div class="notice">Restoring <strong>replaces everything on this device</strong> — quotes, clients, rates, settings. Export a JSON backup first if this device has work the snapshot does not.</div>' +
+          '<div class="rows">' + rows.map(function (r) {
+            return '<button class="row" data-act="cloudRestore" data-id="' + esc(r.id) + '">' +
+              '<span class="avatar">' + icon('download', 18) + '</span>' +
+              '<span class="rmain"><span class="rtitle">' + esc(r.label || 'Untitled snapshot') + '</span>' +
+              '<span class="rsub">' + esc(r.author_email || 'unknown') + ' · ' + fmtDateTime(r.created_at) + '</span></span>' +
+              '<span class="badge">Restore</span></button>';
+          }).join('') + '</div>'),
+      footer: '<button class="btn" data-modal-close>Close</button>'
+    });
+  }, function (e) { cloudMsg(String(e.message || e), true); });
+};
+ACTIONS.cloudRestore = function (d) {
+  if (!confirm('Replace everything on this device with this snapshot? Local quotes not in it will be gone.')) return;
+  cloudPull(d.id).then(function (data) {
+    if (importData(JSON.stringify(data))) {
+      closeAllModals();
+      toast('Snapshot restored', 'good');
+      historyStack.length = 0;
+      go('dashboard', {}, true);
+    }
+  }, function (e) { toast(String(e.message || e), 'bad'); });
+};
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso);
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+/* ==========================================================================
    BOOT
    ========================================================================== */
 function init() {
   /* brand marks — embedded, so nothing is fetched at runtime */
   const sb = document.getElementById('sbLogo'); if (sb) sb.src = BRAND_MARK_MONO;
   const tm = document.getElementById('topMark'); if (tm) tm.src = BRAND_MARK_MONO;
+
+  /* Safari deletes a website's storage after 7 days of no interaction with it.
+     Asking for persistent storage is the documented way to opt out of the
+     pressure-based eviction, and WebKit grants it more readily to a Home Screen
+     web app. It costs nothing and it is the difference between a cache and
+     something worth trusting with a week of quotes. */
+  requestPersistentStorage();
+  loadCloudSession();
 
   const loaded = loadState();
   if (loaded) {
