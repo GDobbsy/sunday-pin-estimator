@@ -702,6 +702,7 @@ table.data td.num,table.data th.num{text-align:right; font-variant-numeric:tabul
       <button data-nav="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg> Home</button>
       <button data-nav="quotes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg> Quotes</button>
       <button data-nav="customers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg> Clients</button>
+      <button data-nav="contractors"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> Contractors</button>
       <button data-nav="performance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 3 5-6"/></svg> Performance</button>
       <button data-nav="services"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/><circle cx="19" cy="18" r="2"/></svg> Services &amp; Pricing</button>
       <button data-nav="materials"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z"/><path d="M3.3 7.3 12 12l8.7-4.7M12 22V12"/></svg> Materials</button>
@@ -1170,7 +1171,7 @@ const APP = {
   /* Stamped at build time. The only reliable way to answer "did my link
      actually update?" — a phone can serve a cached copy for a while, and
      nothing else on screen would look different. */
-  build: '2026-09-15 00:34 UTC',
+  build: '2026-09-15 01:03 UTC',
   storageKey: 'sundaypin.estimator.v1'
 };
 
@@ -1366,19 +1367,24 @@ const PRICING_MODES = [
   { id: 'unit',  label: 'Unit rate (entered)' },
   { id: 'labor', label: 'From labor billing rate' }
 ];
-function laborBillingRate(econ) {
+/* What an hour is charged at, PER TRADE. One rate cannot serve both: a wash
+   hour and a paint hour are not worth the same, because on a wash job the
+   machine does the work and on a paint job a person does. */
+function laborBillingRate(econ, trade) {
   econ = econ || (typeof state !== 'undefined' && state.settings ? state.settings.economics : null);
-  const r = econ ? num(econ.laborBillingRate) : 0;
+  const perTrade = econ && econ.laborBillingRates ? num(econ.laborBillingRates[trade || 'Other']) : 0;
+  if (perTrade > 0) return perTrade;
+  const r = econ ? num(econ.laborBillingRate) : 0;      // pre-per-trade fallback
   return r > 0 ? r : 55;
 }
 /* The rate actually used. Always go through this — never read sellingRate raw. */
 function serviceSellingRate(s, econ) {
   if (!s || s.pricingMode !== 'labor') return num(s ? s.sellingRate : 0);
   const b = basis(s.billingBasis);
-  if (b.laborFromQuantity) return round(laborBillingRate(econ), 2);   // hour basis: quantity IS hours
+  if (b.laborFromQuantity) return round(laborBillingRate(econ, s.trade), 2);   // hour basis: quantity IS hours
   const prod = num(s.productionRate);
   if (prod <= 0) return num(s.sellingRate);                          // no rate to divide by — fall back
-  return round(laborBillingRate(econ) / prod, 4);
+  return round(laborBillingRate(econ, s.trade) / prod, 4);
 }
 /* Revenue per labor hour a service implies, for comparison against the
    billing rate. This is the yardstick that showed unit and labor pricing were
@@ -1517,12 +1523,17 @@ function makeQuoteItem(service, over) {
     sellingRate: serviceSellingRate(service),
     minimumCharge: service.minimumCharge,
     pricingMode: service.pricingMode || 'unit',
-    laborBillingRate: laborBillingRate(),   // frozen with the rate, like everything else
+    laborBillingRate: laborBillingRate(null, service.trade),   // frozen with the rate, like everything else
     productionRate: service.productionRate,
     productionRateBasis: service.productionRateBasis,
     setupHours: service.setupHours,
     cleanupHours: service.cleanupHours,
     quantity: over.quantity != null ? over.quantity : (b.id === 'flat' ? 1 : ''),
+    /* "It's a six hour job." Skips measurement, production rates and site
+       conditions entirely — when someone states the hours, calculating them
+       from two invented numbers is worse, not better. */
+    priceByHours: !!over.priceByHours,
+    billableHours: over.billableHours != null ? over.billableHours : '',
     crewSize: over.crewSize || 2,
     /* The applicable questions are snapshotted with everything else, so
        re-profiling a service later never re-prices an existing quote. */
@@ -1574,6 +1585,7 @@ function makeQuote(o) {
     status: o.status || 'Draft',
     mode: o.mode || 'single',                // single | options
     internalNotes: o.internalNotes || '',
+    contractorId: o.contractorId || null,   // who the job is assigned to
     crewNotes: o.crewNotes || '',            // appears on the crew work order only
     customerNotes: o.customerNotes != null ? o.customerNotes : s.quote.defaultCustomerNote,
     assumptions: o.assumptions != null ? o.assumptions : s.quote.defaultAssumptions,
@@ -1593,6 +1605,7 @@ function makeQuote(o) {
       laborCostingBasis: s.economics.laborCostingBasis,
       laborRates: clone(s.economics.laborRates),
       laborBillingRate: s.economics.laborBillingRate,
+      laborBillingRates: clone(s.economics.laborBillingRates),
       materialMarkup: s.economics.materialMarkup,
       equipmentCostPerHour: s.economics.equipmentCostPerHour,
       travelCostPerMile: s.economics.travelCostPerMile,
@@ -1730,7 +1743,12 @@ function defaultSettings() {
          "labor" pricing derive their selling rate from this. Production work
          (washing) is priced by the unit instead — the machine does that work,
          so the labor hour is not what the customer is buying. */
-      laborBillingRate: 55,
+      laborBillingRate: 55,                 // fallback for anything without a trade rate
+      /* Washing defaults to what this catalogue's own unit rates already imply
+         per labor hour — median $136.50 across 19 services — so pricing a wash
+         line by the hour lands in the same place as pricing it by the foot.
+         Painting is $55 because that is what a person's hour is sold at. */
+      laborBillingRates: { 'Pressure Washing': 140, 'Painting': 55, 'Other': 55 },
       /* Labor-priced work bills materials on top. 0 = passed through at cost. */
       materialMarkup: 0,
       equipmentCostPerHour: 9,
@@ -1759,6 +1777,7 @@ function blankState() {
   return {
     meta: { version: APP.version, quoteSeq: 0, seededAt: null, lastExportAt: null, lastCloudAt: null },
     settings: defaultSettings(),
+    contractors: [],
     customers: [],
     contacts: [],
     properties: [],
@@ -1809,6 +1828,12 @@ function migrateState(st) {
     st.settings.company.tagline = 'Painting & Cleaning';
   }
   if (!st.crewDispatches) st.crewDispatches = [];
+  if (!st.contractors) st.contractors = [];
+  const ec = st.settings && st.settings.economics;
+  if (ec && !ec.laborBillingRates) {
+    const base = num(ec.laborBillingRate) || 55;
+    ec.laborBillingRates = { 'Pressure Washing': 140, 'Painting': base, 'Other': base };
+  }
   /* Installs from before the key shipped get it once. `keySetOnce` means a
      deliberate "Remove key" is never quietly undone on the next load. */
   const al = st.settings && st.settings.integrations && st.settings.integrations.addressLookup;
@@ -2243,6 +2268,15 @@ function seedDemoData() {
     createdAt: new Date().toISOString()
   });
 
+  st.contractors = [
+    makeContractor({ name: 'Marcus Reed', company: 'Reed Exterior Services', phone: '(770) 555-0184',
+                     email: 'marcus@reedexterior.example', trades: ['Pressure Washing'],
+                     notes: 'Two-man crew. Has own rig and tank.' }),
+    makeContractor({ name: 'Dani Alvarez', company: 'Alvarez Painting', phone: '(770) 555-0147',
+                     email: 'dani@alvarezpainting.example', trades: ['Painting'],
+                     notes: 'Interior and exterior. Books two weeks out.' })
+  ];
+
   st.meta.seededAt = new Date().toISOString();
   return st;
 }
@@ -2260,6 +2294,8 @@ function resetDemoData() {
 /* Productive labor = quantity ÷ production rate.
    For an hourly billing basis the entered quantity IS the labor. */
 function calculateProductiveLabor(item) {
+  /* Hours stated outright. No measurement, no production rate. */
+  if (item.priceByHours) return round(num(item.billableHours), 2);
   const b = basis(item.billingBasis);
   const q = num(item.quantity);
   if (b.laborFromQuantity) return round(q, 2);
@@ -2312,6 +2348,17 @@ function calculateLaborAdjustments(item) {
 /* Total labor for a line item, showing every step of the calculation. */
 function calculateTotalLabor(item, crewOverride) {
   const productive = calculateProductiveLabor(item);
+  /* When someone says "six hours", six hours is the answer — adding setup,
+     cleanup and a site-condition multiplier on top would be arguing with them. */
+  if (item.priceByHours) {
+    const crewH = Math.max(1, num(crewOverride) || num(item.crewSize) || 1);
+    return {
+      productive: productive, multiplier: 1, addedHours: 0, adjustmentHours: 0,
+      adjustedProductive: productive, setup: 0, cleanup: 0, calculated: productive,
+      overridden: false, overrideReason: '', final: productive,
+      crewSize: crewH, elapsed: round(productive / crewH, 2), applied: [], stated: true
+    };
+  }
   const adj = calculateLaborAdjustments(item);
   const adjustedProductive = round(productive * adj.multiplier + adj.addedHours, 2);
   const setup = num(item.setupHours);
@@ -2434,6 +2481,7 @@ function calculateMaterialCost(item) {
    so that is what is billed. */
 function billableLaborHours(item, labor) {
   if (!labor) return 0;
+  if (item.priceByHours) return num(item.billableHours);
   return basis(item.billingBasis).laborFromQuantity ? num(item.quantity) : num(labor.final);
 }
 
@@ -2443,8 +2491,8 @@ function calculateServiceBasePrice(item, labor) {
   const rate = num(item.sellingRate);
   const q = num(item.quantity);
   let raw;
-  if (item.pricingMode === 'labor' && labor) {
-    raw = num(item.laborBillingRate || laborBillingRate()) * billableLaborHours(item, labor);
+  if ((item.pricingMode === 'labor' || item.priceByHours) && labor) {
+    raw = num(item.laborBillingRate || laborBillingRate(null, item.trade)) * billableLaborHours(item, labor);
   } else if (b.id === 'flat') {
     raw = rate * (q > 0 ? q : 1);
   } else {
@@ -2991,6 +3039,7 @@ const VIEW_META = {
   proposal:   { title: 'Proposal Preview',   nav: 'quotes', back: true },
   customers:  { title: 'Clients',            nav: 'customers' },
   customer:   { title: 'Client',             nav: 'customers', back: true },
+  contractors:{ title: 'Contractors',        nav: 'contractors' },
   services:   { title: 'Services & Pricing', nav: 'services' },
   materials:  { title: 'Materials',          nav: 'materials' },
   settings:   { title: 'Settings',           nav: 'settings' },
@@ -3030,13 +3079,14 @@ function openMoreSheet() {
   openModal({
     title: 'More',
     body: '<div class="rows">' +
-      [['performance', 'Performance', 'Win rate, averages, pipeline value, estimate vs actual'],
+      [['contractors', 'Contractors', 'Who does the work, and which trades they cover'],
+       ['performance', 'Performance', 'Win rate, averages, pipeline value, estimate vs actual'],
        ['services', 'Services & Pricing', 'Rates, production rates, labor assumptions'],
        ['materials', 'Materials', 'Simple material costs'],
        ['settings', 'Settings', 'Company, quote defaults, economics, data backup']]
       .map(function (r) {
         return '<button class="row" data-act="moreNav" data-to="' + r[0] + '">' +
-          '<span class="avatar">' + icon(r[0] === 'settings' ? 'gear' : (r[0] === 'materials' ? 'box' : (r[0] === 'performance' ? 'chart' : 'tag')), 18) + '</span>' +
+          '<span class="avatar">' + icon(r[0] === 'settings' ? 'gear' : (r[0] === 'materials' ? 'box' : (r[0] === 'performance' ? 'chart' : (r[0] === 'contractors' ? 'user' : 'tag'))), 18) + '</span>' +
           '<span class="rmain"><span class="rtitle">' + r[1] + '</span><span class="rsub">' + r[2] + '</span></span>' +
           '<span class="muted">' + icon('chevronRight', 18) + '</span></button>';
       }).join('') + '</div>'
@@ -4095,8 +4145,25 @@ function renderItemCard(q, it, ctx) {
 
   html += '<div class="item-body">';
 
+  /* Measure it, or just say how long it takes. Two ways to reach a price, and
+     the second is often the honest one before production rates are proven. */
+  const rateFor = num(it.laborBillingRate) || laborBillingRate(null, it.trade);
+  if (b.id !== 'hour' && b.id !== 'flat') {
+    html += '<div class="seg mb-12">' +
+      '<button class="' + (!it.priceByHours ? 'on' : '') + '" data-act="itemPriceMode" data-id="' + it.id + '" data-m="unit">Measure it</button>' +
+      '<button class="' + (it.priceByHours ? 'on' : '') + '" data-act="itemPriceMode" data-id="' + it.id + '" data-m="hours">Price by hours</button>' +
+    '</div>';
+  }
+
+  if (it.priceByHours) {
+    html += '<div class="field"><label for="bh_' + it.id + '">Hours for this line</label>' +
+      '<input type="number" inputmode="decimal" step="any" min="0" id="bh_' + it.id + '" value="' + esc(it.billableHours) + '" data-oninput="itemHours" data-id="' + it.id + '" placeholder="0">' +
+      '<div class="hint">Charged at ' + money(rateFor) + ' / hour for ' + esc(tradeShort(it.trade)) + '. Setup, cleanup and site conditions are not added on top — the hours you enter are the hours.</div>' +
+      '<div class="err-msg" id="bh_' + it.id + '_err" hidden></div></div>';
+  }
+
   /* quantity */
-  if (b.id !== 'flat') {
+  if (!it.priceByHours && b.id !== 'flat') {
     html += '<div class="field"><label for="qty_' + it.id + '">' + esc(b.qtyLabel) + ' <span class="muted">(' + esc(it.unitLabel) + ')</span></label>' +
       '<input type="number" inputmode="decimal" step="any" min="0" id="qty_' + it.id + '" value="' + esc(it.quantity) + '" data-oninput="itemQty" data-id="' + it.id + '" placeholder="0">' +
       '<div class="err-msg" id="qty_' + it.id + '_err" hidden></div></div>';
@@ -4105,8 +4172,8 @@ function renderItemCard(q, it, ctx) {
   }
 
   /* adjustments — only the questions that apply to THIS service */
-  const groups = itemAdjustmentGroups(it);
-  const flags = itemAdjustmentFlags(it);
+  const groups = it.priceByHours ? [] : itemAdjustmentGroups(it);
+  const flags = it.priceByHours ? [] : itemAdjustmentFlags(it);
   if (groups.length || flags.length) {
     html += '<div class="adj-group"><div class="lbl">Site conditions</div>';
     groups.forEach(function (g) {
@@ -4124,7 +4191,7 @@ function renderItemCard(q, it, ctx) {
         }).join('') + '</div></div>';
     }
     html += '</div>';
-  } else {
+  } else if (!it.priceByHours) {
     html += '<div class="notice">No site conditions apply to this line — labor is entered directly below.</div>';
   }
 
@@ -4271,7 +4338,7 @@ function renderPricing(it, c) {
   const p = c.price;
   let h = '';
   if (it.pricingMode === 'labor') {
-    const bill = num(it.laborBillingRate) || laborBillingRate();
+    const bill = num(it.laborBillingRate) || laborBillingRate(null, it.trade);
     h += '<div class="notice"><span class="strong">Priced from labor at ' + money(bill) + ' / hour.</span> ' +
       (b.laborFromQuantity
         ? 'Hours entered above are charged at that rate.'
@@ -4287,7 +4354,7 @@ function renderPricing(it, c) {
 
   h += '<div class="calc-trace">' +
     '<div class="ct-line"><span>' + (it.pricingMode === 'labor'
-        ? hrs(c.labor.final, 2) + ' labor hrs \u00d7 ' + money(num(it.laborBillingRate) || laborBillingRate())
+        ? hrs(c.labor.final, 2) + ' labor hrs \u00d7 ' + money(num(it.laborBillingRate) || laborBillingRate(null, it.trade))
         : 'Base at rate') + '</span><span>' + money(p.rawPrice) + '</span></div>' +
     (p.minimumApplied ? '<div class="ct-line"><span>Minimum charge applied</span><span>' + money(p.minimum) + '</span></div>' : '') +
     p.adjustmentDetail.map(function (a) {
@@ -4362,6 +4429,27 @@ INPUTS.itemQty = function (d, el) {
   const v = el.value === '' ? '' : Math.max(0, num(el.value));
   f.item.quantity = v;
   setErr('qty_' + d.id, v === '' || v <= 0 ? 'Enter a quantity greater than zero' : '');
+  updateItemDisplays(d.id); touch();
+};
+ACTIONS.itemPriceMode = function (d) {
+  const f = findItem(d.id); if (!f) return;
+  const on = d.m === 'hours';
+  if (f.item.priceByHours === on) return;
+  f.item.priceByHours = on;
+  /* Seed the hours from whatever the measurement said, so switching over starts
+     from the estimate rather than from zero. */
+  if (on && !num(f.item.billableHours)) {
+    const est = calculateTotalLabor(Object.assign({}, f.item, { priceByHours: false })).final;
+    if (est > 0) f.item.billableHours = round(est, 1);
+  }
+  persistQuote(f.quote);
+  render();
+};
+INPUTS.itemHours = function (d, el) {
+  const f = findItem(d.id); if (!f) return;
+  const v = el.value === '' ? '' : Math.max(0, num(el.value));
+  f.item.billableHours = v;
+  setErr('bh_' + d.id, v === '' || v <= 0 ? 'Enter the hours for this line' : '');
   updateItemDisplays(d.id); touch();
 };
 ACTIONS.itemAdj = function (d) {
@@ -4838,6 +4926,22 @@ VIEWS.quote = function (params) {
     html += '</div>';
   });
 
+  html += '<div class="section-title">Crew</div>';
+  html += renderAssignCard(q);
+
+  /* Every work order that has left the building, and who it went to. */
+  const dispatches = crewDispatchesFor(q.id);
+  if (dispatches.length) {
+    html += '<div class="card flush"><div class="rows">' + dispatches.map(function (d) {
+      const to = d.contractorId ? byId(state.contractors, d.contractorId) : null;
+      return '<div class="row" style="cursor:default">' +
+        '<span class="avatar">' + icon('send', 16) + '</span>' +
+        '<span class="rmain"><span class="rtitle">Work order sent' + (to ? ' to ' + esc(contractorLabel(to)) : '') + '</span>' +
+        '<span class="rsub">' + fmtDateTime(d.sentAt) + ' · ' + esc(d.method === 'share_sheet' ? 'share sheet' : d.method) + '</span></span>' +
+      '</div>';
+    }).join('') + '</div></div>';
+  }
+
   html += renderPhotoCard(q);
 
   /* record detail */
@@ -4845,6 +4949,7 @@ VIEWS.quote = function (params) {
     '<div class="kv"><span class="k">Quote date</span><span class="v">' + fmtDate(q.quoteDate) + '</span></div>' +
     '<div class="kv"><span class="k">Valid through</span><span class="v">' + fmtDate(q.validUntil) + '</span></div>' +
     '<div class="kv"><span class="k">Recipients</span><span class="v">' + (recips.length ? esc(recips.map(contactLabel).join(', ')) : '<span class="muted">None selected</span>') + '</span></div>' +
+    '<div class="kv"><span class="k">Assigned to</span><span class="v">' + (quoteContractor(q) ? esc(contractorLabel(quoteContractor(q))) : '<span class="muted">Nobody</span>') + '</span></div>' +
     '<div class="kv"><span class="k">Sent</span><span class="v">' + fmtDateTime(q.sentAt) + '</span></div>' +
     '<div class="kv"><span class="k">Accepted</span><span class="v">' + fmtDateTime(q.acceptedAt) + '</span></div>' +
     '<div class="kv"><span class="k">Declined</span><span class="v">' + fmtDateTime(q.declinedAt) + '</span></div>' +
@@ -5675,6 +5780,7 @@ function buildWorkOrderData(q) {
        "Scope of work — Proposal" is noise. Only name it when there is a choice. */
     optionName: q.mode === 'options' ? option.name : '',
     trades: quoteTrades(q),
+    assignedTo: quoteContractor(q) ? contractorLabel(quoteContractor(q)) : '',
     crew: {
       size: crew.crewSize,
       roles: crew.roles.map(function (r) { return { name: r.name, count: r.count }; }),   // names and counts, never rates
@@ -5729,6 +5835,7 @@ function renderWorkOrderHTML(d) {
       '<div><div class="m-k">Status</div><div class="m-v">' + esc(d.status) + '</div></div>' +
       '<div><div class="m-k">Client</div><div class="m-v">' + esc(d.clientName) + '</div></div>' +
       '<div><div class="m-k">Issued</div><div class="m-v">' + fmtDate(d.issuedOn) + '</div></div>' +
+      (d.assignedTo ? '<div><div class="m-k">Assigned To</div><div class="m-v">' + esc(d.assignedTo) + '</div></div>' : '') +
     '</div>' +
   '</header>';
 
@@ -6341,7 +6448,7 @@ function generateWorkOrderPdf(q) {
     ['Status', d.status],
     ['Client', d.clientName],
     ['Issued', fmtDate(d.issuedOn)]
-  ];
+  ].concat(d.assignedTo ? [['Assigned To', d.assignedTo]] : []);
   const colX = [M, M + CW / 2];
   meta.forEach(function (pair, i) {
     const x = colX[i % 2];
@@ -6547,6 +6654,7 @@ function recordCrewDispatch(q, method, note) {
   state.crewDispatches = state.crewDispatches || [];
   state.crewDispatches.push({
     id: uid('cd'), quoteId: q.id, method: method,
+    contractorId: q.contractorId || null,
     sentAt: new Date().toISOString(), note: note || ''
   });
   q.updatedAt = new Date().toISOString();
@@ -6561,9 +6669,20 @@ ACTIONS.saveWorkOrder = function (d) { saveWorkOrderPdf(d.id); };
 ACTIONS.sendWorkOrder = function (d) {
   const q = byId(state.quotes, d.id);
   if (!q) return;
+  const assigned = quoteContractor(q);
+  const suited = contractorsForTrades(quoteTrades(q));
   openModal({
     title: 'Send work order to crew',
     body: '<div class="notice">The PDF carries scope, hours, materials, access and photos. No pricing, no cost, no margin.</div>' +
+      (state.contractors.length
+        ? '<div class="field"><label for="woTo">Send to</label><select id="woTo">' +
+            '<option value="">Not recorded</option>' +
+            (suited.length ? suited : activeContractors()).map(function (c) {
+              return '<option value="' + c.id + '"' + (assigned && assigned.id === c.id ? ' selected' : '') + '>' +
+                esc(contractorLabel(c)) + (c.phone ? ' — ' + esc(c.phone) : '') + '</option>';
+            }).join('') +
+          '</select><div class="hint">Picking someone assigns the job to them as well.</div></div>'
+        : '<div class="hint">Add contractors under Contractors and this becomes a pick list.</div>') +
       fieldTextarea('woMsg', 'Message to the crew', '', { rows: 3, placeholder: 'e.g. Thursday 8am start, gate code 1432.' }) +
       '<div class="hint">' + (canShareFiles()
         ? 'Share opens your phone\'s share sheet with the PDF already attached — send it by message, mail or whatever the crew uses.'
@@ -6575,6 +6694,13 @@ ACTIONS.sendWorkOrder = function (d) {
 };
 ACTIONS.doSendWorkOrder = function (d) {
   const extra = $('#woMsg') ? $('#woMsg').value.trim() : '';
+  /* Sending is also assigning — the two always meant the same thing in
+     practice, so making them one action removes a step nobody would take. */
+  const sel = $('#woTo');
+  if (sel) {
+    const q0 = byId(state.quotes, d.id);
+    if (q0) { q0.contractorId = sel.value || null; saveState(); }
+  }
   if (!shareWorkOrderPdf(d.id, extra)) {
     saveWorkOrderPdf(d.id);
     const q = byId(state.quotes, d.id);
@@ -7062,7 +7188,7 @@ VIEWS.services = function () {
         '<td><span class="tiny">' + esc(adjProfile(s.adjustmentProfile).label) + '</span></td>' +
         '<td>' + esc(b.label) + '</td>' +
         '<td class="num">' + money(serviceSellingRate(s)) +
-          (s.pricingMode === 'labor' ? '<br><span class="tiny muted">from ' + money0(laborBillingRate()) + '/hr</span>' : '') + '</td>' +
+          (s.pricingMode === 'labor' ? '<br><span class="tiny muted">from ' + money0(laborBillingRate(null, s.trade)) + '/hr</span>' : '') + '</td>' +
         '<td class="num">' + money0(s.minimumCharge) + '</td>' +
         '<td class="num">' + (s.productionRate ? qty(s.productionRate) + ' <span class="tiny muted">' + esc(s.unitLabel) + '/hr</span>' : '<span class="muted">—</span>') + '</td>' +
         '<td class="num">' + impliedHourlyCell(s) + '</td>' +
@@ -7084,7 +7210,7 @@ ACTIONS.editService = function (d) { openServiceForm(byId(state.services, d.id))
 function impliedHourlyCell(s) {
   const v = impliedHourlyRevenue(s);
   if (v === null) return '<span class="muted">—</span>';
-  const target = laborBillingRate();
+  const target = laborBillingRate(null, s.trade);
   const cls = v < target ? 'warn' : '';
   return '<span class="badge ' + cls + '">' + money0(v) + '</span>';
 }
@@ -7100,12 +7226,12 @@ function ratePreviewHTML(s) {
       (implied === null ? '' : ' That works out to <span class="strong">' + money0(implied) + ' per labor hour</span> at this production rate.');
   }
   if (b.laborFromQuantity) {
-    return '<span class="strong">Charged at ' + money(laborBillingRate()) + ' / hour</span> — the billing rate from Settings. The entered rate above is ignored.';
+    return '<span class="strong">Charged at ' + money(laborBillingRate(null, s.trade)) + ' / hour</span> — the ' + esc(tradeShort(s.trade)) + ' rate from Settings. The entered rate above is ignored.';
   }
   if (num(s.productionRate) <= 0) {
     return '<span class="strong">Needs a production rate.</span> Labor pricing divides the billing rate by production; with no production rate the entered rate is used instead.';
   }
-  return '<span class="strong">' + money(laborBillingRate()) + ' / hour ÷ ' + qty(s.productionRate) + ' ' + esc(s.unitLabel || b.unit) + ' per hour = ' +
+  return '<span class="strong">' + money(laborBillingRate(null, s.trade)) + ' / hour ÷ ' + qty(s.productionRate) + ' ' + esc(s.unitLabel || b.unit) + ' per hour = ' +
     money(rate) + ' per ' + esc(s.unitLabel || b.unit) + '</span><br>' +
     '<span class="tiny">The entered rate above is ignored. Change the production rate to change the price.</span>';
 }
@@ -7196,6 +7322,7 @@ function openServiceForm(existing) {
         const box = $('#sv_rate_preview', root);
         if (!box) return;
         box.innerHTML = ratePreviewHTML({
+          trade: val('sv_trade', root),
           pricingMode: val('sv_pricing', root),
           billingBasis: val('sv_basis', root),
           unitLabel: val('sv_unit', root) || basis(val('sv_basis', root)).unit,
@@ -7353,10 +7480,7 @@ VIEWS.settings = function () {
       fieldNumber('se_misc', 'Default miscellaneous cost allowance', s.economics.miscAllowance, { min: 0 }) +
       fieldNumber('se_target', 'Target contribution margin (%)', s.economics.targetMargin, { min: 0, hint: 'A benchmark warning only. It never forces a price.' }) +
     '</div>' +
-    '<div class="grid2">' +
-      fieldNumber('se_bill', 'Labor billing rate ($ / labor hour)', s.economics.laborBillingRate, { min: 0, hint: 'What an hour of labor is CHARGED at — labor plus company overhead. Services set to labor pricing bill every labor hour at this rate.' }) +
-      fieldNumber('se_matmark', 'Material markup on labor-priced work (%)', s.economics.materialMarkup, { min: 0, hint: 'Materials are billed on top of the labor rate. 0 passes them through at cost.' }) +
-    '</div>' +
+    fieldNumber('se_matmark', 'Material markup on labor-priced work (%)', s.economics.materialMarkup, { min: 0, hint: 'Materials are billed on top of the labor rate. 0 passes them through at cost.' }) +
   '</div>';
 
   html += renderDataSafetyCard();
@@ -7364,6 +7488,18 @@ VIEWS.settings = function () {
   html += renderCloudCard();
 
   html += renderAddressSettings();
+
+  /* One rate per trade. A wash hour and a paint hour are not worth the same,
+     so a single number was always going to be wrong for one of them. */
+  html += '<div class="card"><div class="card-head"><h3>Hourly billing rates</h3>' +
+    '<span class="internal-flag">' + icon('alert', 12) + ' Internal</span></div>' +
+    '<p class="small muted">What an hour is <strong>charged</strong> at — labor plus company overhead. Used by any service priced from labor, and by any line switched to “Price by hours”.</p>' +
+    SERVICE_TRADES.map(function (t) {
+      return fieldNumber('se_bill_' + t.replace(/\W/g, ''), tradeShort(t) + ' ($ / labor hour)',
+        laborBillingRate(s.economics, t), { min: 0 });
+    }).join('') +
+    '<div class="hint">Painting is $55 because that is what a person\'s hour sells for. Washing defaults to $140 — the median your own unit rates already imply per labor hour — because on a wash job the machine does the work. Set both with Jeremy.</div>' +
+  '</div>';
 
   html += '<div class="card"><div class="card-head"><h3>Rate status</h3>' +
     (s.economics.ratesConfirmed ? '<span class="badge good">Confirmed</span>' : '<span class="badge warn">Sample rates</span>') + '</div>' +
@@ -7532,7 +7668,12 @@ ACTIONS.saveSettings = function () {
   if (ratesBox) s.economics.ratesConfirmed = ratesBox.checked;
   if (num(val('se_workday')) < 1) { setErr('se_workday', 'A work day has to be at least 1 hour'); return; }
   readLaborSettingsFields();
-  const nums = { equipmentCostPerHour: 'se_equip', travelCostPerMile: 'se_mile', miscAllowance: 'se_misc', targetMargin: 'se_target', laborBillingRate: 'se_bill', materialMarkup: 'se_matmark' };
+  const nums = { equipmentCostPerHour: 'se_equip', travelCostPerMile: 'se_mile', miscAllowance: 'se_misc', targetMargin: 'se_target', materialMarkup: 'se_matmark' };
+  s.economics.laborBillingRates = s.economics.laborBillingRates || {};
+  SERVICE_TRADES.forEach(function (t) {
+    const v = val('se_bill_' + t.replace(/\W/g, ''));
+    if (v !== '' && v !== null && v !== undefined) s.economics.laborBillingRates[t] = Math.max(0, num(v));
+  });
   let bad = null;
   Object.keys(nums).forEach(function (k) {
     const x = num(val(nums[k]));
@@ -8361,6 +8502,237 @@ function fmtDateTime(iso) {
   if (isNaN(d)) return String(iso);
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
+/* ==========================================================================
+   CONTRACTORS
+   A phone book, not a management system. Who they are, how to reach them, and
+   which trades they do — so assigning a job means picking a name instead of
+   hunting for a number, and the quote remembers who it went to.
+
+   Deliberately absent: scheduling, availability, per-contractor pay rates, and
+   any flow where the contractor has to accept, log in, or press anything. A
+   work order in their messages asks nothing of them, which is the only way a
+   tool like this survives contact with people who never asked for it.
+   ========================================================================== */
+
+function makeContractor(o) {
+  o = o || {};
+  return {
+    id: o.id || uid('con'),
+    name: o.name || '',
+    company: o.company || '',
+    phone: o.phone || '',
+    email: o.email || '',
+    /* Which trades they do — the same axis the catalogue uses, so a new trade
+       gives every contractor a box to tick and nothing else has to change. */
+    trades: o.trades || [],
+    notes: o.notes || '',
+    active: o.active !== false,
+    createdAt: o.createdAt || new Date().toISOString(),
+    externalLinks: o.externalLinks || emptyExternalLinks()
+  };
+}
+
+function contractorLabel(c) {
+  if (!c) return 'Unassigned';
+  return c.name || c.company || 'Unnamed contractor';
+}
+function contractorSub(c) {
+  return [c.company && c.company !== c.name ? c.company : '', c.phone].filter(Boolean).join(' · ');
+}
+function activeContractors() {
+  return state.contractors.filter(function (c) { return c.active; })
+    .sort(function (a, b) { return contractorLabel(a).localeCompare(contractorLabel(b)); });
+}
+function contractorsForTrades(trades) {
+  const want = (trades || []).filter(function (t) { return t !== 'Other'; });
+  if (!want.length) return activeContractors();
+  return activeContractors().filter(function (c) {
+    return want.some(function (t) { return (c.trades || []).indexOf(t) >= 0; });
+  });
+}
+function quoteContractor(q) {
+  return q && q.contractorId ? byId(state.contractors, q.contractorId) : null;
+}
+
+/* ==========================================================================
+   LIST
+   ========================================================================== */
+let contractorTrade = 'All';
+
+VIEWS.contractors = function () {
+  let list = state.contractors.slice().sort(function (a, b) {
+    if (a.active !== b.active) return a.active ? -1 : 1;
+    return contractorLabel(a).localeCompare(contractorLabel(b));
+  });
+  if (contractorTrade !== 'All') {
+    list = list.filter(function (c) { return (c.trades || []).indexOf(contractorTrade) >= 0; });
+  }
+
+  let html = '<div class="page-head"><h1>Contractors</h1>' +
+    '<div class="sub">Who does the work, and how to reach them.</div></div>';
+  html += '<div class="card"><button class="btn primary block" data-act="newContractor">' +
+    icon('plus', 18) + ' Add Contractor</button></div>';
+
+  html += '<div class="seg mb-12">' + ['All'].concat(SERVICE_TRADES).map(function (t) {
+    return '<button class="' + (contractorTrade === t ? 'on' : '') + '" data-act="contractorTrade" data-t="' + esc(t) + '">' +
+      esc(t === 'Pressure Washing' ? 'Washing' : t) + '</button>';
+  }).join('') + '</div>';
+
+  if (!list.length) {
+    html += '<div class="card"><div class="empty"><div class="ico">' + icon('user', 24) + '</div>' +
+      '<h3>' + (state.contractors.length ? 'Nobody in this trade' : 'No contractors yet') + '</h3>' +
+      '<p class="small">' + (state.contractors.length
+        ? 'No active contractor is marked for this trade.'
+        : 'Add the people you send work to, and assigning a job becomes picking a name.') + '</p></div></div>';
+    return html;
+  }
+
+  html += '<div class="card flush"><div class="rows">' + list.map(function (c) {
+    const jobs = state.quotes.filter(function (q) { return q.contractorId === c.id; }).length;
+    return '<button class="row" data-act="editContractor" data-id="' + c.id + '"' + (c.active ? '' : ' style="opacity:.55"') + '>' +
+      '<span class="avatar">' + esc(initials(contractorLabel(c))) + '</span>' +
+      '<span class="rmain"><span class="rtitle">' + esc(contractorLabel(c)) +
+        (c.active ? '' : ' <span class="badge">Inactive</span>') + '</span>' +
+      '<span class="rsub">' + esc([contractorSub(c), (c.trades || []).map(tradeShort).join(', ')].filter(Boolean).join(' · ') || 'No trades set') + '</span></span>' +
+      '<span class="rside">' + (jobs ? '<span class="badge">' + jobs + ' job' + (jobs === 1 ? '' : 's') + '</span>' : '') + '</span>' +
+    '</button>';
+  }).join('') + '</div></div>';
+  return html;
+};
+VIEWS.contractors_actions = function () {
+  return '<button class="topbar-btn" data-act="newContractor">Add</button>';
+};
+ACTIONS.contractorTrade = function (d) { contractorTrade = d.t; render(); };
+ACTIONS.newContractor = function () { openContractorForm(null); };
+ACTIONS.editContractor = function (d) { openContractorForm(byId(state.contractors, d.id)); };
+
+function openContractorForm(existing) {
+  const c = existing || makeContractor({});
+  openModal({
+    title: existing ? 'Edit contractor' : 'Add contractor',
+    body: fieldText('ct_name', 'Name', c.name, { required: true, placeholder: 'e.g. Marcus Reed' }) +
+      fieldText('ct_company', 'Company', c.company, { placeholder: 'Optional' }) +
+      '<div class="grid2">' +
+        fieldText('ct_phone', 'Phone', c.phone, { inputmode: 'tel' }) +
+        fieldText('ct_email', 'Email', c.email, { inputmode: 'email' }) +
+      '</div>' +
+      '<div class="lbl">Trades they do</div><div class="chiprow mb-12" id="ctTrades">' +
+        SERVICE_TRADES.map(function (t) {
+          const on = (c.trades || []).indexOf(t) >= 0;
+          return '<button type="button" class="chip" aria-pressed="' + on + '" data-trade="' + esc(t) + '">' +
+            esc(tradeShort(t)) + '</button>';
+        }).join('') +
+      '</div>' +
+      fieldTextarea('ct_notes', 'Notes', c.notes, { rows: 2, placeholder: 'Rates agreed, insurance, who to call first' }) +
+      '<label class="inline-check"><input type="checkbox" id="ct_active"' + (c.active ? ' checked' : '') + '> Active — offered when assigning work</label>',
+    footer: '<button class="btn" data-modal-close>Cancel</button>' +
+      (existing ? '<button class="btn danger" data-act="deleteContractor" data-id="' + c.id + '">Delete</button>' : '') +
+      '<button class="btn primary" data-act="saveContractorForm">Save</button>',
+    onMount: function (root) {
+      root.__entity = c; root.__isNew = !existing;
+      root.__trades = (c.trades || []).slice();
+      root.addEventListener('click', function (e) {
+        const b = e.target.closest('[data-trade]');
+        if (!b) return;
+        const t = b.getAttribute('data-trade');
+        const i = root.__trades.indexOf(t);
+        if (i >= 0) root.__trades.splice(i, 1); else root.__trades.push(t);
+        b.setAttribute('aria-pressed', root.__trades.indexOf(t) >= 0);
+      });
+    }
+  });
+}
+ACTIONS.saveContractorForm = function () {
+  const root = modalStack[modalStack.length - 1];
+  const c = root.__entity;
+  clearErrs(root);
+  const name = val('ct_name', root).trim();
+  if (!name) { setErr('ct_name', 'Enter a name', root); return; }
+  const email = val('ct_email', root).trim();
+  if (email && !isEmail(email)) { setErr('ct_email', 'That email does not look right', root); return; }
+  c.name = name;
+  c.company = val('ct_company', root).trim();
+  c.phone = val('ct_phone', root).trim();
+  c.email = email;
+  c.trades = root.__trades.slice();
+  c.notes = val('ct_notes', root);
+  c.active = $('#ct_active', root).checked;
+  if (root.__isNew) state.contractors.push(c);
+  saveState();
+  closeModal();
+  toast('Contractor saved', 'good');
+  render();
+};
+ACTIONS.deleteContractor = function (d) {
+  const assigned = state.quotes.filter(function (q) { return q.contractorId === d.id; });
+  if (assigned.length) {
+    toast('That contractor is on ' + assigned.length + ' quote' + (assigned.length === 1 ? '' : 's') + ' — mark them inactive instead', 'bad');
+    return;
+  }
+  const i = state.contractors.findIndex(function (c) { return c.id === d.id; });
+  if (i >= 0) state.contractors.splice(i, 1);
+  saveState();
+  closeAllModals();
+  toast('Contractor removed', 'good');
+  render();
+};
+
+let showAllContractorsFor = null;
+
+/* ==========================================================================
+   ASSIGNING A JOB
+   ========================================================================== */
+function renderAssignCard(q) {
+  const c = quoteContractor(q);
+  const trades = quoteTrades(q);
+  const showAll = showAllContractorsFor === q.id;
+  const suited = showAll ? activeContractors() : contractorsForTrades(trades);
+
+  let h = '<div class="card"><div class="card-head"><h3>Assigned to</h3>' +
+    (c ? '<span class="badge good">' + esc(contractorLabel(c)) + '</span>' : '<span class="badge warn">Nobody yet</span>') + '</div>';
+
+  if (!state.contractors.length) {
+    h += '<p class="small muted">No contractors on file. Add them once and assigning a job becomes picking a name.</p>' +
+      '<button class="btn block" data-act="nav" data-nav="contractors">' + icon('plus', 17) + ' Add a contractor</button></div>';
+    return h;
+  }
+
+  h += '<div class="rows">' +
+    '<button class="row' + (!q.contractorId ? ' on' : '') + '" data-act="assignContractor" data-id="' + q.id + '" data-cid="">' +
+      '<span class="avatar">—</span>' +
+      '<span class="rmain"><span class="rtitle">Unassigned</span>' +
+      '<span class="rsub">No one is down for this job</span></span>' +
+      '<span class="rside">' + (!q.contractorId ? '<span class="badge good">' + icon('check', 12) + '</span>' : '') + '</span></button>' +
+    suited.map(function (x) {
+      const on = q.contractorId === x.id;
+      return '<button class="row' + (on ? ' on' : '') + '" data-act="assignContractor" data-id="' + q.id + '" data-cid="' + x.id + '">' +
+        '<span class="avatar">' + esc(initials(contractorLabel(x))) + '</span>' +
+        '<span class="rmain"><span class="rtitle">' + esc(contractorLabel(x)) + '</span>' +
+        '<span class="rsub">' + esc([contractorSub(x), (x.trades || []).map(tradeShort).join(', ')].filter(Boolean).join(' · ')) + '</span></span>' +
+        '<span class="rside">' + (on ? '<span class="badge good">' + icon('check', 12) + ' Assigned</span>' : '<span class="badge">Assign</span>') + '</span>' +
+      '</button>';
+    }).join('') + '</div>';
+
+  /* The filter is a convenience, never a wall — the right person for a job is
+     not always the one with the box ticked. */
+  if (!showAll && trades.length && suited.length < activeContractors().length) {
+    h += '<p class="hint">Showing contractors marked for ' + esc(trades.map(tradeShort).join(' and ')) +
+      '. <button class="btn sm" data-act="showAllContractors" data-id="' + q.id + '">Show everyone</button></p>';
+  }
+  h += '</div>';
+  return h;
+}
+ACTIONS.assignContractor = function (d) {
+  const q = byId(state.quotes, d.id);
+  if (!q) return;
+  q.contractorId = d.cid || null;
+  q.updatedAt = new Date().toISOString();
+  saveState();
+  const c = quoteContractor(q);
+  toast(c ? 'Assigned to ' + contractorLabel(c) : 'Unassigned', 'good');
+  render();
+};
+ACTIONS.showAllContractors = function (d) { showAllContractorsFor = d.id; render(); };
 /* ==========================================================================
    BOOT
    ========================================================================== */
