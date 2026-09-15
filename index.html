@@ -213,6 +213,29 @@ input.err,select.err,textarea.err{border-color:var(--bad); background:#fffafa}
 .search-wrap{position:relative}
 .search-wrap input{padding-left:38px}
 .search-wrap svg{position:absolute; left:12px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--ink-3)}
+.search-wrap .search-clear{
+  position:absolute; right:6px; top:50%; transform:translateY(-50%);
+  width:34px; height:34px; border:0; background:none; color:var(--ink-3);
+  font-size:22px; line-height:1; cursor:pointer; border-radius:50%;
+}
+.search-wrap .search-clear:hover{background:#eceae5; color:var(--ink)}
+.field.mb-0{margin-bottom:0}
+.seg.seg-trade button{padding:9px 4px; font-size:13px}
+.ih-trade{
+  font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--ink-3); background:#eceae5; border-radius:4px; padding:2px 6px;
+  margin-left:7px; white-space:nowrap; flex-shrink:0;
+}
+.seg.seg-count button{padding:9px 4px}
+.seg.seg-count .seg-n{margin-left:5px; font-size:11.5px; font-weight:700; opacity:.55}
+.seg.seg-count button.on .seg-n{opacity:.7}
+
+.chip .chip-n{
+  font-size:11.5px; font-weight:700; color:var(--ink-3);
+  background:#eceae5; border-radius:999px; padding:1px 7px; min-width:20px; text-align:center;
+}
+.chip[aria-pressed="true"] .chip-n{background:rgba(255,255,255,.22); color:#fff}
+.list-meta{font-size:12.5px; color:var(--ink-3); margin:0 2px 8px; font-weight:600}
 
 /* ---------- chips / segmented ---------- */
 .chiprow{display:flex; flex-wrap:wrap; gap:7px}
@@ -1147,6 +1170,9 @@ const APP = {
   storageKey: 'sundaypin.estimator.v1'
 };
 
+/* Shipped default — see the note on settings.integrations.addressLookup. */
+const GEOAPIFY_DEFAULT_KEY = 'b6b491aa96334ef4b44476eebcd33936';
+
 function emptyExternalLinks() {
   return { quickbooks: { externalId: null, syncToken: null, lastSyncedAt: null } };
 }
@@ -1174,6 +1200,11 @@ const MATERIAL_CATEGORIES = [
                rather than a category value. */
 const SERVICE_CATEGORIES = ['Residential', 'Commercial', 'Golf', 'Events', 'Project', 'Other'];
 const SERVICE_VENUES = ['Exterior', 'Interior', 'Either'];
+/* TRADE — what kind of work it is. The axis an estimator actually thinks in,
+   and the one that keeps the catalogue legible as the business adds lines of
+   work. Adding "Interior Remodeling" later is one string here plus a trade on
+   each new service; nothing else has to change. */
+const SERVICE_TRADES = ['Pressure Washing', 'Painting', 'Other'];
 
 /* Seeded labor rate IDs are fixed constants so the default crew can reference them. */
 const RATE_STANDARD = 'rate_standard';
@@ -1433,6 +1464,7 @@ function makeService(o) {
     name: o.name || '',
     category: o.category || 'Other',
     venue: o.venue || 'Exterior',                     // Exterior | Interior | Either
+    trade: o.trade || 'Other',                        // what kind of work it is
     description: o.description || '',                 // customer-facing
     billingBasis: o.billingBasis || 'sqft',
     unitLabel: o.unitLabel || basis(o.billingBasis || 'sqft').unit,
@@ -1474,6 +1506,7 @@ function makeQuoteItem(service, over) {
     name: service.name,
     category: service.category,
     venue: service.venue || 'Exterior',
+    trade: service.trade || 'Other',
     description: service.description,
     billingBasis: service.billingBasis,
     unitLabel: service.unitLabel,
@@ -1703,7 +1736,12 @@ function defaultSettings() {
     },
     /* Optional outside services. Keys live in this browser, never in the file. */
     integrations: {
-      addressLookup: { provider: 'geoapify', apiKey: '', country: 'us' },
+      /* Geoapify key. Unlike a payment credential this one is safe enough to
+         ship: the free tier has a hard ceiling and no card behind it, so the
+         worst a stolen key can do is exhaust the day's lookups — the address
+         box stops suggesting, and nothing else happens. Restrict it by HTTP
+         referrer in the Geoapify dashboard to make even that unlikely. */
+      addressLookup: { provider: 'geoapify', apiKey: GEOAPIFY_DEFAULT_KEY, country: 'us', keySetOnce: true },
       /* Publishable key — safe in the file. Row Level Security makes the
          sign-in the boundary, not the key. */
       cloud: { url: 'https://ffhlidmtsqntquqgciyx.supabase.co',
@@ -1767,6 +1805,13 @@ function migrateState(st) {
     st.settings.company.tagline = 'Painting & Cleaning';
   }
   if (!st.crewDispatches) st.crewDispatches = [];
+  /* Installs from before the key shipped get it once. `keySetOnce` means a
+     deliberate "Remove key" is never quietly undone on the next load. */
+  const al = st.settings && st.settings.integrations && st.settings.integrations.addressLookup;
+  if (al && !al.keySetOnce) {
+    if (!String(al.apiKey || '').trim()) al.apiKey = GEOAPIFY_DEFAULT_KEY;
+    al.keySetOnce = true;
+  }
   (st.quotes || []).forEach(function (q) {
     if (q.crewNotes === undefined) q.crewNotes = '';
     const snap = q.economicsSnapshot || {};
@@ -1910,33 +1955,33 @@ function importData(json) {
    editable in Services & Pricing / Materials / Settings.
    ========================================================================== */
 const SERVICE_SEED = [
-  // code, name, category, basis, rate, min, prodRate, setup, cleanup, unitOverride, description, venue, adjustmentProfile, pricingMode
-  ['HW-001',    'House / Building Wash',        'Residential', 'sqft',    0.18,  275, 900,  0.4, 0.3, null, 'Low-pressure soft wash of siding, trim, soffits, and eaves to remove organic growth, dirt, and surface staining. Includes rinse of adjacent surfaces and landscape protection.', 'Exterior', 'soft_wash'],
-  ['CON-001',   'Driveway',                     'Residential', 'sqft',    0.16,  149, 800,  0.4, 0.3, null, 'Surface cleaning of concrete or paver driveway to remove dirt, algae, and general surface staining, followed by a controlled rinse.', 'Exterior', 'flatwork'],
-  ['CON-002',   'Sidewalk',                     'Residential', 'sqft',    0.17,   99, 750,  0.3, 0.2, null, 'Cleaning of walkways and entry paths, including edge detailing where accessible.', 'Exterior', 'flatwork'],
-  ['CON-003',   'Patio',                        'Residential', 'sqft',    0.19,  129, 700,  0.3, 0.2, null, 'Cleaning of patio hardscape including detail work around steps, seating areas, and transitions.', 'Exterior', 'flatwork'],
-  ['CON-004',   'Retaining Wall',               'Residential', 'sqft',    0.22,  149, 550,  0.3, 0.2, null, 'Cleaning of retaining wall face to remove organic growth and surface soiling.', 'Exterior', 'general'],
-  ['WOOD-001',  'Deck Cleaning',                'Residential', 'sqft',    0.42,  199, 300,  0.4, 0.4, null, 'Controlled low-pressure cleaning of wood or composite decking, railings, and steps using wood-appropriate cleaning solution.', 'Exterior', 'wood'],
-  ['WOOD-002',  'Fence Cleaning',               'Residential', 'linft',   4.50,  199,  45,  0.4, 0.3, null, 'Cleaning of fence panels and posts, both accessible sides where noted, using low-pressure methods appropriate to the material.', 'Exterior', 'wood'],
-  ['GUT-001',   'Exterior Gutters',             'Residential', 'linft',   1.35,  125,  90,  0.3, 0.2, null, 'Exterior gutter face brightening to remove oxidation streaking and surface staining.', 'Exterior', 'gutter'],
-  ['GUT-002',   'Gutter Cleaning',              'Residential', 'linft',   1.75,  150,  70,  0.4, 0.3, null, 'Removal of debris from gutter troughs and accessible downspouts, with a flow check where practical.', 'Exterior', 'gutter'],
-  ['COM-001',   'Commercial Building Exterior', 'Commercial',  'sqft',    0.16,  650, 1000, 0.8, 0.5, null, 'Exterior building wash of accessible elevations using methods appropriate to the substrate, with adjacent hardscape rinse.', 'Exterior', 'soft_wash'],
-  ['COM-002',   'Storefront',                   'Commercial',  'sqft',    0.18,  275, 900,  0.5, 0.3, null, 'Cleaning of storefront facade, entry surround, and immediate approach areas.', 'Exterior', 'soft_wash'],
-  ['COM-003',   'Commercial Walkways',          'Commercial',  'sqft',    0.14,  350, 1100, 0.6, 0.4, null, 'Surface cleaning of pedestrian walkways and entry approaches.', 'Exterior', 'flatwork'],
-  ['COM-004',   'Loading / Service Area',       'Commercial',  'sqft',    0.22,  450, 600,  0.8, 0.5, null, 'Cleaning of loading and service areas including degreasing of typical traffic soiling.', 'Exterior', 'flatwork'],
-  ['COM-005',   'Dumpster Pad',                 'Commercial',  'each',  185.00,  185, 0.8,  0.4, 0.3, 'pad', 'Cleaning and degreasing of dumpster pad and enclosure floor area.', 'Exterior', 'flatwork'],
-  ['GOLF-001',  'Clubhouse Exterior',           'Golf',        'sqft',    0.19,  950, 850,  1.0, 0.6, null, 'Exterior wash of clubhouse elevations, entries, and covered areas, scheduled around member activity.', 'Exterior', 'soft_wash'],
-  ['GOLF-002',  'Cart Barn',                    'Golf',        'sqft',    0.15,  450, 1000, 0.6, 0.4, null, 'Cleaning of cart barn exterior and adjacent staging surfaces.', 'Exterior', 'soft_wash'],
-  ['GOLF-003',  'Golf Pool / Patio',            'Golf',        'sqft',    0.21,  400, 650,  0.6, 0.4, null, 'Cleaning of pool deck and patio hardscape including furniture staging areas.', 'Exterior', 'flatwork'],
-  ['GOLF-004',  'Tennis / Pickleball Hardscape','Golf',        'sqft',    0.13,  400, 1200, 0.5, 0.4, null, 'Low-pressure cleaning of court surrounds and accessible hardscape.', 'Exterior', 'flatwork'],
-  ['EVENT-001', 'Event Vehicle Wash',           'Events',      'vehicle',34.00,  450, 3.5,  1.0, 0.5, null, 'On-site exterior vehicle wash service staged at the event location, including setup and site protection.', 'Exterior', 'vehicle'],
-  ['PAINT-001', 'Exterior Painting',            'Project',     'sqft',    2.25,  750, 140,  1.0, 0.8, null, 'Exterior surface preparation and application of finish coating to the areas identified in the scope of work, including masking and protection of adjacent surfaces and landscaping.', 'Exterior', 'ext_paint', 'labor'],
-  ['PAINT-002', 'Interior Painting',            'Project',     'sqft',    2.10,  450, 160,  1.2, 0.8, null, 'Interior painting of the walls, ceilings and trim identified in the scope of work. Includes light surface preparation, patching of minor nail holes and dings, masking, floor and furniture protection, cutting in, and application of finish coats.', 'Interior', 'int_paint', 'labor'],
-  ['PAINT-003', 'Interior Trim & Doors',        'Project',     'linft',   6.50,  350,  30,  1.0, 0.6, null, 'Preparation and painting of interior trim, baseboards, casings and doors as identified in the scope of work, including light sanding, filling and masking.', 'Interior', 'int_paint', 'labor'],
-  ['STAIN-001', 'Staining / Sealing',           'Project',     'sqft',    1.35,  450, 220,  0.8, 0.6, null, 'Preparation and application of stain or sealer to the areas identified in the scope of work.', 'Exterior', 'ext_paint', 'labor'],
-  ['CUSTOM-002','Custom Labor Service',         'Project',     'hour',   85.00,  150, 0,    0.3, 0.2, null, 'Labor service performed as described in the scope of work.', 'Either', 'none', 'labor'],
-  ['TRAVEL-001','Mobilization / Travel',        'Other',       'flat',   95.00,    0, 0,    0.5, 0.0, null, 'Mobilization of crew, equipment, and water supply to the property.', 'Either', 'none'],
-  ['CUSTOM-001','Custom Service',               'Other',       'hour',   95.00,  150, 0,    0.3, 0.2, null, 'Service performed as described in the scope of work.', 'Either', 'none', 'labor']
+  // code, name, category, basis, rate, min, prodRate, setup, cleanup, unitOverride, description, venue, adjustmentProfile, pricingMode, trade
+  ['HW-001',    'House / Building Wash',        'Residential', 'sqft',    0.18,  275, 900,  0.4, 0.3, null, 'Low-pressure soft wash of siding, trim, soffits, and eaves to remove organic growth, dirt, and surface staining. Includes rinse of adjacent surfaces and landscape protection.', 'Exterior', 'soft_wash', 'unit', 'Pressure Washing'],
+  ['CON-001',   'Driveway',                     'Residential', 'sqft',    0.16,  149, 800,  0.4, 0.3, null, 'Surface cleaning of concrete or paver driveway to remove dirt, algae, and general surface staining, followed by a controlled rinse.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['CON-002',   'Sidewalk',                     'Residential', 'sqft',    0.17,   99, 750,  0.3, 0.2, null, 'Cleaning of walkways and entry paths, including edge detailing where accessible.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['CON-003',   'Patio',                        'Residential', 'sqft',    0.19,  129, 700,  0.3, 0.2, null, 'Cleaning of patio hardscape including detail work around steps, seating areas, and transitions.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['CON-004',   'Retaining Wall',               'Residential', 'sqft',    0.22,  149, 550,  0.3, 0.2, null, 'Cleaning of retaining wall face to remove organic growth and surface soiling.', 'Exterior', 'general', 'unit', 'Pressure Washing'],
+  ['WOOD-001',  'Deck Cleaning',                'Residential', 'sqft',    0.42,  199, 300,  0.4, 0.4, null, 'Controlled low-pressure cleaning of wood or composite decking, railings, and steps using wood-appropriate cleaning solution.', 'Exterior', 'wood', 'unit', 'Pressure Washing'],
+  ['WOOD-002',  'Fence Cleaning',               'Residential', 'linft',   4.50,  199,  45,  0.4, 0.3, null, 'Cleaning of fence panels and posts, both accessible sides where noted, using low-pressure methods appropriate to the material.', 'Exterior', 'wood', 'unit', 'Pressure Washing'],
+  ['GUT-001',   'Exterior Gutters',             'Residential', 'linft',   1.35,  125,  90,  0.3, 0.2, null, 'Exterior gutter face brightening to remove oxidation streaking and surface staining.', 'Exterior', 'gutter', 'unit', 'Pressure Washing'],
+  ['GUT-002',   'Gutter Cleaning',              'Residential', 'linft',   1.75,  150,  70,  0.4, 0.3, null, 'Removal of debris from gutter troughs and accessible downspouts, with a flow check where practical.', 'Exterior', 'gutter', 'unit', 'Pressure Washing'],
+  ['COM-001',   'Commercial Building Exterior', 'Commercial',  'sqft',    0.16,  650, 1000, 0.8, 0.5, null, 'Exterior building wash of accessible elevations using methods appropriate to the substrate, with adjacent hardscape rinse.', 'Exterior', 'soft_wash', 'unit', 'Pressure Washing'],
+  ['COM-002',   'Storefront',                   'Commercial',  'sqft',    0.18,  275, 900,  0.5, 0.3, null, 'Cleaning of storefront facade, entry surround, and immediate approach areas.', 'Exterior', 'soft_wash', 'unit', 'Pressure Washing'],
+  ['COM-003',   'Commercial Walkways',          'Commercial',  'sqft',    0.14,  350, 1100, 0.6, 0.4, null, 'Surface cleaning of pedestrian walkways and entry approaches.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['COM-004',   'Loading / Service Area',       'Commercial',  'sqft',    0.22,  450, 600,  0.8, 0.5, null, 'Cleaning of loading and service areas including degreasing of typical traffic soiling.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['COM-005',   'Dumpster Pad',                 'Commercial',  'each',  185.00,  185, 0.8,  0.4, 0.3, 'pad', 'Cleaning and degreasing of dumpster pad and enclosure floor area.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['GOLF-001',  'Clubhouse Exterior',           'Golf',        'sqft',    0.19,  950, 850,  1.0, 0.6, null, 'Exterior wash of clubhouse elevations, entries, and covered areas, scheduled around member activity.', 'Exterior', 'soft_wash', 'unit', 'Pressure Washing'],
+  ['GOLF-002',  'Cart Barn',                    'Golf',        'sqft',    0.15,  450, 1000, 0.6, 0.4, null, 'Cleaning of cart barn exterior and adjacent staging surfaces.', 'Exterior', 'soft_wash', 'unit', 'Pressure Washing'],
+  ['GOLF-003',  'Golf Pool / Patio',            'Golf',        'sqft',    0.21,  400, 650,  0.6, 0.4, null, 'Cleaning of pool deck and patio hardscape including furniture staging areas.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['GOLF-004',  'Tennis / Pickleball Hardscape','Golf',        'sqft',    0.13,  400, 1200, 0.5, 0.4, null, 'Low-pressure cleaning of court surrounds and accessible hardscape.', 'Exterior', 'flatwork', 'unit', 'Pressure Washing'],
+  ['EVENT-001', 'Event Vehicle Wash',           'Events',      'vehicle',34.00,  450, 3.5,  1.0, 0.5, null, 'On-site exterior vehicle wash service staged at the event location, including setup and site protection.', 'Exterior', 'vehicle', 'unit', 'Pressure Washing'],
+  ['PAINT-001', 'Exterior Painting',            'Project',     'sqft',    2.25,  750, 140,  1.0, 0.8, null, 'Exterior surface preparation and application of finish coating to the areas identified in the scope of work, including masking and protection of adjacent surfaces and landscaping.', 'Exterior', 'ext_paint', 'labor', 'Painting'],
+  ['PAINT-002', 'Interior Painting',            'Project',     'sqft',    2.10,  450, 160,  1.2, 0.8, null, 'Interior painting of the walls, ceilings and trim identified in the scope of work. Includes light surface preparation, patching of minor nail holes and dings, masking, floor and furniture protection, cutting in, and application of finish coats.', 'Interior', 'int_paint', 'labor', 'Painting'],
+  ['PAINT-003', 'Interior Trim & Doors',        'Project',     'linft',   6.50,  350,  30,  1.0, 0.6, null, 'Preparation and painting of interior trim, baseboards, casings and doors as identified in the scope of work, including light sanding, filling and masking.', 'Interior', 'int_paint', 'labor', 'Painting'],
+  ['STAIN-001', 'Staining / Sealing',           'Project',     'sqft',    1.35,  450, 220,  0.8, 0.6, null, 'Preparation and application of stain or sealer to the areas identified in the scope of work.', 'Exterior', 'ext_paint', 'labor', 'Painting'],
+  ['CUSTOM-002','Custom Labor Service',         'Project',     'hour',   85.00,  150, 0,    0.3, 0.2, null, 'Labor service performed as described in the scope of work.', 'Either', 'none', 'labor', 'Other'],
+  ['TRAVEL-001','Mobilization / Travel',        'Other',       'flat',   95.00,    0, 0,    0.5, 0.0, null, 'Mobilization of crew, equipment, and water supply to the property.', 'Either', 'none', 'unit', 'Other'],
+  ['CUSTOM-001','Custom Service',               'Other',       'hour',   95.00,  150, 0,    0.3, 0.2, null, 'Service performed as described in the scope of work.', 'Either', 'none', 'labor', 'Other']
 ];
 
 const MATERIAL_SEED = [
@@ -1965,7 +2010,8 @@ function serviceFromSeed(r) {
     description: r[10],
     venue: r[11] || 'Exterior',
     adjustmentProfile: r[12] || 'general',
-    pricingMode: r[13] || 'unit'
+    pricingMode: r[13] || 'unit',
+    trade: r[14] || 'Other'
   });
 }
 function seedCatalog(st) {
@@ -2012,6 +2058,17 @@ function syncCatalog(st) {
     if (s.pricingMode) return;
     const seed = SERVICE_SEED.find(function (r) { return r[0] === s.serviceCode; });
     s.pricingMode = (seed && seed[13]) || 'unit';
+  });
+  /* Services written before trades existed are placed from the seed. Anything
+     custom is inferred from how it is priced — a service asking about prep and
+     coats is painting whatever it is called. */
+  st.services.forEach(function (s) {
+    if (s.trade) return;
+    const seed = SERVICE_SEED.find(function (r) { return r[0] === s.serviceCode; });
+    if (seed && seed[14]) { s.trade = seed[14]; return; }
+    const prof = s.adjustmentProfile;
+    s.trade = (prof === 'ext_paint' || prof === 'int_paint') ? 'Painting'
+            : (prof === 'none' ? 'Other' : 'Pressure Washing');
   });
 }
 
@@ -2627,6 +2684,25 @@ function propertyAddress(p) {
   const l2 = [p.city, p.state].filter(Boolean).join(', ');
   return [p.address, [l2, p.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 }
+/* Short label for a trade — "Washing" reads better than "Pressure Washing"
+   everywhere it sits beside something else. */
+function tradeShort(t) { return t === 'Pressure Washing' ? 'Washing' : (t || 'Other'); }
+
+/* Which trades a quote actually contains, in catalogue order. A quote is not
+   one job type — washing the house and painting the trim is one good quote —
+   so this is derived, never chosen. */
+function quoteTrades(q) {
+  const seen = {};
+  ((q && q.options) || []).forEach(function (o) {
+    (o.items || []).forEach(function (it) { seen[it.trade || 'Other'] = true; });
+  });
+  return SERVICE_TRADES.filter(function (t) { return seen[t]; });
+}
+function quoteTradeLabel(q) {
+  const t = quoteTrades(q).filter(function (x) { return x !== 'Other'; });
+  return t.length ? t.map(tradeShort).join(' + ') : '';
+}
+
 function contactsFor(customerId) {
   return state.contacts.filter(function (c) { return c.customerId === customerId && c.active !== false; });
 }
@@ -2981,7 +3057,9 @@ function quoteRow(q) {
     '<span class="avatar ' + (c && c.customerType === 'Golf' ? 'g' : (c && c.customerType === 'Commercial' ? 'c' : (c && c.customerType === 'Event' ? 'e' : ''))) + '">' + esc(initials(customerLabel(c))) + '</span>' +
     '<span class="rmain">' +
       '<span class="rtitle">' + esc(customerLabel(c)) + '</span>' +
-      '<span class="rsub">' + esc(q.quoteNumber || 'Unsaved') + ' · ' + esc(propertyLabel(p)) + '</span>' +
+      '<span class="rsub">' + esc(q.quoteNumber || 'Unsaved') +
+        (quoteTradeLabel(q) ? ' · ' + esc(quoteTradeLabel(q)) : '') +
+        ' · ' + esc(propertyLabel(p)) + '</span>' +
     '</span>' +
     '<span class="rside">' +
       '<span class="ramt">' + money0(total) + '</span><br>' +
@@ -3031,11 +3109,11 @@ VIEWS.dashboard = function () {
      number is never a dead end. */
   const bookedHours = bookedLaborHours(m.toSchedule);
   html += '<div class="stats">' +
-    statTap('Open Quotes', String(m.openCount), 'Draft, ready and sent', 'Active', true) +
+    statTap('Open Quotes', String(m.openCount), 'Draft, ready and sent', 'open', true) +
     statTap('Needs Follow-Up', String(m.followUps.length), 'Sent 5+ days ago', 'Sent') +
     statTap('Expiring Soon', String(m.expiring.length), 'Within 7 days', 'Sent') +
     statTap('Won — To Schedule', String(m.toSchedule.length),
-      bookedHours ? hrs(bookedHours, 1) + ' man-hours booked' : 'No actuals recorded yet', 'Accepted') +
+      bookedHours ? hrs(bookedHours, 1) + ' man-hours booked' : 'No actuals recorded yet', 'won') +
   '</div>';
 
   html += '<div class="btn-row mt-16"><button class="btn primary" data-act="newQuote">' + icon('plus', 18) + ' New Quote</button>' +
@@ -3081,7 +3159,8 @@ function statTap(k, v, n, filter, accent) {
     (n ? '<div class="n">' + esc(n) + '</div>' : '') + '</button>';
 }
 ACTIONS.goQuotes = function (d) {
-  quoteFilter = d.f || 'Active';
+  quoteFilter = d.f || 'open';
+  quoteSearch = '';
   historyStack.length = 0;
   go('quotes', {}, true);
 };
@@ -3157,31 +3236,110 @@ ACTIONS.openQuote = function (d) { go('quote', { id: d.id }); };
 ACTIONS.newQuote = function () { startNewQuote(); };
 
 /* ==========================================================================
-   QUOTES LIST
+   QUOTES — the repository
+   Finding a quote is the job here, so search comes first and the filters are
+   three buckets rather than one chip per status. The eight statuses still
+   exist and still show on every row; they just are not eight things to choose
+   between when you are standing in a driveway trying to find the Smith job.
    ========================================================================== */
-let quoteFilter = 'Active';
-const QUOTE_FILTERS = ['Active', 'Draft', 'Ready', 'Sent', 'Accepted', 'Declined', 'Expired', 'Archived', 'All'];
+let quoteFilter = 'open';
+let quoteSearch = '';
+
+const QUOTE_BUCKETS = [
+  { id: 'open',   label: 'Open',   statuses: ['Draft', 'Ready', 'Sent'] },
+  { id: 'won',    label: 'Won',    statuses: ['Accepted'] },
+  { id: 'closed', label: 'Closed', statuses: ['Declined', 'Expired', 'Archived'] },
+  { id: 'all',    label: 'All',    statuses: null }
+];
+function quoteBucket(id) {
+  return QUOTE_BUCKETS.find(function (b) { return b.id === String(id).toLowerCase(); }) || null;
+}
+/* A filter is either a bucket id or one exact status — Home links straight to
+   an exact status, and that arrives here as a removable chip. */
+function quoteMatchesFilter(q) {
+  const st = effectiveStatus(q);
+  const b = quoteBucket(quoteFilter);
+  if (b) return !b.statuses || b.statuses.indexOf(st) >= 0;
+  return st === quoteFilter;
+}
+
+/* Everything you might reach for: the number, who it is for, where it is, and
+   what is on it. */
+function quoteSearchHaystack(q) {
+  const c = byId(state.customers, q.customerId);
+  const p = byId(state.properties, q.propertyId);
+  const parts = [q.quoteNumber, customerLabel(c), c && c.companyName, propertyLabel(p), propertyAddress(p), effectiveStatus(q)];
+  (q.recipientContactIds || []).forEach(function (id) {
+    const ct = byId(state.contacts, id);
+    if (ct) parts.push(contactLabel(ct), ct.email, ct.phone);
+  });
+  (q.options || []).forEach(function (o) {
+    (o.items || []).forEach(function (it) { parts.push(it.name); });
+  });
+  return parts.filter(Boolean).join(' ').toLowerCase();
+}
+function quoteMatchesSearch(q, term) {
+  if (!term) return true;
+  const hay = quoteSearchHaystack(q);
+  /* every word has to appear somewhere — "smith drive" finds the Smith driveway */
+  return term.split(/\s+/).filter(Boolean).every(function (w) { return hay.indexOf(w) >= 0; });
+}
+
+function quotesMatching() {
+  const term = quoteSearch.toLowerCase().trim();
+  return state.quotes.slice()
+    .sort(function (a, b) { return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt); })
+    .filter(function (q) { return quoteMatchesFilter(q) && quoteMatchesSearch(q, term); });
+}
 
 VIEWS.quotes = function () {
-  let list = state.quotes.slice().sort(function (a, b) {
-    return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
-  });
-  list = list.filter(function (q) {
-    const st = effectiveStatus(q);
-    if (quoteFilter === 'All') return true;
-    if (quoteFilter === 'Active') return ['Draft', 'Ready', 'Sent'].indexOf(st) >= 0;
-    return st === quoteFilter;
-  });
+  const term = quoteSearch.toLowerCase().trim();
+  const list = quotesMatching();
+  /* Counts ignore the search, so a chip never reads zero just because you are
+     mid-word — they describe the book, not the page. */
+  const countFor = function (b) {
+    return state.quotes.filter(function (q) {
+      return !b.statuses || b.statuses.indexOf(effectiveStatus(q)) >= 0;
+    }).length;
+  };
 
-  let html = '<div class="page-head"><h1>Quotes</h1><div class="sub">' + state.quotes.length + ' total · ' + list.length + ' shown</div></div>';
-  html += '<div class="chiprow mb-12">' + QUOTE_FILTERS.map(function (f) {
-    return '<button class="chip" aria-pressed="' + (quoteFilter === f) + '" data-act="quoteFilter" data-f="' + f + '">' + f + '</button>';
+  let html = '<div class="page-head"><h1>Quotes</h1><div class="sub">Every quote you have written.</div></div>';
+
+  html += '<div class="card tight">' +
+    '<div class="field search-wrap mb-0">' + icon('search', 18) +
+      '<input type="text" id="quoteSearch" placeholder="Search client, address, quote number" ' +
+        'value="' + esc(quoteSearch) + '" data-oninput="quoteSearch" autocomplete="off" ' +
+        'autocapitalize="none" autocorrect="off" spellcheck="false">' +
+      (quoteSearch ? '<button class="search-clear" data-act="clearQuoteSearch" aria-label="Clear search">&times;</button>' : '') +
+    '</div></div>';
+
+  /* A segmented control, not chips: this is one exclusive choice, and four
+     segments divide the width instead of wrapping onto a second row. */
+  const b = quoteBucket(quoteFilter);
+  html += '<div class="seg seg-count mb-8">' + QUOTE_BUCKETS.map(function (bk) {
+    return '<button class="' + (quoteFilter === bk.id ? 'on' : '') + '" data-act="quoteFilter" data-f="' + bk.id + '">' +
+      esc(bk.label) + '<span class="seg-n">' + countFor(bk) + '</span></button>';
   }).join('') + '</div>';
+  /* arrived from a Home card that means one exact status */
+  if (!b) {
+    html += '<div class="chiprow mb-8"><button class="chip" aria-pressed="true" data-act="quoteFilter" data-f="open">' +
+      esc(quoteFilter) + ' &times;</button></div>';
+  }
+
+  html += '<div class="list-meta">' + list.length + ' of ' + state.quotes.length + ' quote' + (state.quotes.length === 1 ? '' : 's') +
+    (term ? ' matching “' + esc(quoteSearch.trim()) + '”' : '') + '</div>';
 
   if (!list.length) {
-    html += '<div class="card"><div class="empty"><div class="ico">' + icon('doc', 24) + '</div><h3>Nothing here</h3>' +
-      '<p class="small">No quotes match this filter.</p>' +
-      '<div class="btn-row mt-12" style="justify-content:center"><button class="btn primary" data-act="newQuote">' + icon('plus', 18) + ' New Quote</button></div></div></div>';
+    html += '<div class="card"><div class="empty"><div class="ico">' + icon('doc', 24) + '</div>' +
+      '<h3>' + (term ? 'No match' : 'Nothing here') + '</h3>' +
+      '<p class="small">' + (term
+        ? 'No quote matches that. Try a client name, a street, or a quote number.'
+        : 'No quotes in this group yet.') + '</p>' +
+      '<div class="btn-row mt-12" style="justify-content:center">' +
+        (term ? '<button class="btn" data-act="clearQuoteSearch">Clear search</button>' : '') +
+        (quoteFilter !== 'all' ? '<button class="btn" data-act="quoteFilter" data-f="all">Search all quotes</button>' : '') +
+        '<button class="btn primary" data-act="newQuote">' + icon('plus', 18) + ' New Quote</button>' +
+      '</div></div></div>';
     return html;
   }
   html += '<div class="card flush"><div class="rows">' + list.map(quoteRow).join('') + '</div></div>';
@@ -3191,12 +3349,29 @@ VIEWS.quotes_actions = function () {
   return '<button class="topbar-btn" data-act="newQuote">New Quote</button>';
 };
 ACTIONS.quoteFilter = function (d) { quoteFilter = d.f; render(); };
+ACTIONS.clearQuoteSearch = function () { quoteSearch = ''; render(); };
+/* Repaint only the list while typing, so the keyboard never loses focus. */
+INPUTS.quoteSearch = function (d, el) {
+  quoteSearch = el.value;
+  const view = $('#view');
+  if (!view) return;
+  const meta = $('.list-meta', view);
+  const list = quotesMatching();
+  if (meta) {
+    const term = quoteSearch.trim();
+    meta.textContent = list.length + ' of ' + state.quotes.length + ' quote' + (state.quotes.length === 1 ? '' : 's') +
+      (term ? ' matching \u201c' + term + '\u201d' : '');
+  }
+  const rows = $('.rows', view);
+  if (rows && list.length) { rows.innerHTML = list.map(quoteRow).join(''); }
+  else render();
+};
 /* ==========================================================================
    QUOTE WORKFLOW — the field estimating flow
    Client -> Property -> Scope -> Labor -> Review
    ========================================================================== */
 
-let editor = { quoteId: null, step: 1, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
+let editor = { quoteId: null, step: 1, optionIndex: 0, catalogTrade: 'Suggested', search: '', open: {}, disc: {} };
 
 /* Remember which disclosure panels are open so a card redraw does not close them. */
 document.addEventListener('toggle', function (e) {
@@ -3210,14 +3385,14 @@ let pendingQuote = null;      // a new quote that has not been persisted yet
 
 function startNewQuote() {
   pendingQuote = makeQuote({});
-  editor = { quoteId: pendingQuote.id, step: STEP_CLIENT, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
+  editor = { quoteId: pendingQuote.id, step: STEP_CLIENT, optionIndex: 0, catalogTrade: 'Suggested', search: '', open: {}, disc: {} };
   go('editor', { id: pendingQuote.id });
 }
 function editQuote(id) {
   const q = byId(state.quotes, id);
   if (!q) return;
   loadQuotePhotos(q).then(function () { if (route.name === 'editor') render(); });
-  editor = { quoteId: id, step: quoteItemCount(q) ? STEP_SCOPE : STEP_CLIENT, optionIndex: 0, catalogCat: 'Suggested', catalogVenue: 'All', search: '', open: {}, disc: {} };
+  editor = { quoteId: id, step: quoteItemCount(q) ? STEP_SCOPE : STEP_CLIENT, optionIndex: 0, catalogTrade: 'Suggested', search: '', open: {}, disc: {} };
   go('editor', { id: id });
 }
 function currentQuote() {
@@ -3507,7 +3682,6 @@ ACTIONS.pickCustomer = function (d) {
   const props = propertiesFor(d.id);
   if (props.length === 1) q.propertyId = props[0].id;
   const c = byId(state.customers, d.id);
-  if (c && ['Commercial', 'Golf'].indexOf(c.customerType) >= 0) editor.catalogCat = c.customerType;
   persistQuote(q);
   render();
 };
@@ -3795,26 +3969,29 @@ function renderStepLabor(q) {
 
 function renderCatalog(q) {
   const c = byId(state.customers, q.customerId);
-  const cats = ['Suggested'].concat(SERVICE_CATEGORIES);
   const opt = currentOption(q);
   const usedCodes = opt.items.map(function (i) { return i.serviceCode; });
+  const pick = editor.catalogTrade || 'Suggested';
+
   let list = state.services.filter(function (s) { return s.active; });
-  if (editor.catalogVenue !== 'All') {
-    list = list.filter(function (s) { return s.venue === editor.catalogVenue || s.venue === 'Either'; });
-  }
-  if (editor.catalogCat === 'Suggested') {
+  if (pick === 'Suggested') {
+    /* What this client normally buys, across every trade — the tab you want
+       when you already know the property. */
     const pref = c ? ({ Residential: 'Residential', Commercial: 'Commercial', Golf: 'Golf', Event: 'Events', Other: 'Residential' })[c.customerType] : 'Residential';
     list = list.filter(function (s) { return s.category === pref || s.category === 'Project' || s.category === 'Other'; });
   } else {
-    list = list.filter(function (s) { return s.category === editor.catalogCat; });
+    list = list.filter(function (s) { return (s.trade || 'Other') === pick; });
   }
-  return '<div class="seg mb-12">' + ['All', 'Exterior', 'Interior'].map(function (v) {
-      return '<button class="' + (editor.catalogVenue === v ? 'on' : '') + '" data-act="catVenue" data-v="' + v + '">' + v + '</button>';
+
+  /* One control: the trade. Interior and exterior painting are separate
+     services with their own rates and their own labels, so a second
+     Exterior/Interior filter was asking a question the names already answer. */
+  const tabs = ['Suggested'].concat(SERVICE_TRADES);
+  return '<div class="seg seg-trade mb-12">' + tabs.map(function (t) {
+      const label = t === 'Pressure Washing' ? 'Washing' : t;
+      return '<button class="' + (pick === t ? 'on' : '') + '" data-act="catTrade" data-t="' + esc(t) + '">' + esc(label) + '</button>';
     }).join('') + '</div>' +
-    '<div class="chiprow mb-12">' + cats.map(function (cat) {
-      return '<button class="chip" aria-pressed="' + (editor.catalogCat === cat) + '" data-act="catCat" data-c="' + esc(cat) + '">' + esc(cat) + '</button>';
-    }).join('') + '</div>' +
-    (!list.length ? '<div class="card"><div class="empty"><h3>No services here yet</h3><p class="small">Nothing in the catalog matches this filter. Add one in Services &amp; Pricing.</p></div></div>' : '') +
+    (!list.length ? '<div class="card"><div class="empty"><h3>Nothing here yet</h3><p class="small">No active service in this trade. Add one in Services &amp; Pricing.</p></div></div>' : '') +
     '<div class="svc-grid">' + list.map(function (s) {
       const b = basis(s.billingBasis);
       const added = usedCodes.indexOf(s.serviceCode) >= 0;
@@ -3823,6 +4000,7 @@ function renderCatalog(q) {
         (b.id === 'hour' ? money(sr) + ' / hour' : money(sr) + ' / ' + s.unitLabel);
       return '<button class="svc-card' + (added ? ' added' : '') + '" data-act="addService" data-id="' + s.id + '">' +
         '<span class="sc-code">' + esc(s.serviceCode) + '</span>' +
+
         '<span class="sc-name">' + esc(s.name) + '</span>' +
         '<span class="sc-rate">' + rate + '</span>' +
         '<span class="tiny muted">' + esc(b.label) + (s.minimumCharge ? ' · min ' + money0(s.minimumCharge) : '') +
@@ -3831,8 +4009,7 @@ function renderCatalog(q) {
       '</button>';
     }).join('') + '</div>';
 }
-ACTIONS.catCat = function (d) { editor.catalogCat = d.c; render(); };
-ACTIONS.catVenue = function (d) { editor.catalogVenue = d.v; render(); };
+ACTIONS.catTrade = function (d) { editor.catalogTrade = d.t; render(); };
 
 /* The first interior line on a quote brings the interior assumptions and
    exclusions with it. Added once, then left alone — the estimator can edit or
@@ -3902,6 +4079,10 @@ function renderItemCard(q, it, ctx) {
   html += '<button class="item-head" data-act="toggleItem" data-id="' + it.id + '" aria-expanded="' + open + '">' +
     '<span class="ih-main">' +
       '<span class="ih-name">' + esc(it.name) + '</span>' +
+      /* Only worth saying on a mixed quote — on a wash-only job it is noise
+         repeated down the whole list. */
+      (quoteTrades(q).filter(function (t) { return t !== 'Other'; }).length > 1 && it.trade !== 'Other'
+        ? '<span class="ih-trade">' + esc(tradeShort(it.trade)) + '</span>' : '') +
       '<span class="ih-sub" id="ihs_' + it.id + '">' + itemHeadSub(it, c) + '</span>' +
     '</span>' +
     '<span class="ih-price" id="ihp_' + it.id + '">' + money0(c.price.quoted) + '</span>' +
@@ -5489,6 +5670,7 @@ function buildWorkOrderData(q) {
     /* A single-mode quote's option is just called "Proposal" — a heading of
        "Scope of work — Proposal" is noise. Only name it when there is a choice. */
     optionName: q.mode === 'options' ? option.name : '',
+    trades: quoteTrades(q),
     crew: {
       size: crew.crewSize,
       roles: crew.roles.map(function (r) { return { name: r.name, count: r.count }; }),   // names and counts, never rates
@@ -5505,6 +5687,7 @@ function buildWorkOrderData(q) {
       else measure = qty(it.quantity) + ' ' + it.unitLabel;
       return {
         name: it.name,
+        trade: it.trade || 'Other',
         venue: it.venue || 'Exterior',
         description: it.description || '',
         measure: measure,
@@ -5577,7 +5760,7 @@ function renderWorkOrderHTML(d) {
         '<div class="wo-line-head"><span class="wo-n">' + (i + 1) + '</span>' +
           '<span class="wo-name">' + esc(l.name) + '</span>' +
           '<span class="wo-hrs">' + hrs(l.hours, 1) + ' hrs</span></div>' +
-        '<div class="wo-measure">' + esc(l.measure) + ' · ' + esc(l.venue) + '</div>' +
+        '<div class="wo-measure">' + esc(tradeShort(l.trade)) + ' · ' + esc(l.measure) + ' · ' + esc(l.venue) + '</div>' +
         (l.description ? '<p class="wo-desc">' + esc(l.description) + '</p>' : '') +
         (l.conditions.length ? '<div class="wo-cond"><strong>Site conditions:</strong> ' + esc(l.conditions.join(' · ')) + '</div>' : '') +
         (l.notes ? '<div class="wo-cond"><strong>Note:</strong> ' + esc(l.notes) + '</div>' : '') +
@@ -6201,7 +6384,7 @@ function generateWorkOrderPdf(q) {
     doc.text(hrs(l.hours, 1) + ' hrs', PW - M, y, { align: 'right' });
     y += 14;
     setFont('bold', 9, PDF_COLORS.ink2);
-    doc.text(l.measure + '   ·   ' + l.venue, M, y);
+    doc.text(tradeShort(l.trade) + '   ·   ' + l.measure + '   ·   ' + l.venue, M, y);
     y += 13;
     if (l.description) para(l.description, { size: 9, color: PDF_COLORS.ink2 });
     if (l.conditions.length) para('Site conditions: ' + l.conditions.join('  ·  '), { size: 9, style: 'bold', color: PDF_COLORS.ink });
@@ -6844,27 +7027,25 @@ ACTIONS.savePropertyForm = function () {
 /* ==========================================================================
    SERVICES & PRICING
    ========================================================================== */
-let serviceCat = 'All';
-let serviceVenue = 'All';
+let serviceTrade = 'All';
 
 VIEWS.services = function () {
   let list = state.services.slice();
-  if (serviceCat !== 'All') list = list.filter(function (s) { return s.category === serviceCat; });
-  if (serviceVenue !== 'All') list = list.filter(function (s) { return s.venue === serviceVenue || s.venue === 'Either'; });
+  if (serviceTrade !== 'All') list = list.filter(function (s) { return (s.trade || 'Other') === serviceTrade; });
 
   let html = '<div class="page-head"><h1>Services &amp; Pricing</h1>' +
     '<div class="sub">Service codes are permanent identifiers. Rates and production rates are editable assumptions — refine them with real job data.</div></div>';
   html += '<div class="notice">Changing a service here never changes a quote that already exists. Every quote stores its own snapshot of the rates it was built with.</div>';
   html += '<div class="card"><button class="btn primary block" data-act="newService">' + icon('plus', 18) + ' Add Service</button></div>';
-  html += '<div class="seg mb-12">' + ['All', 'Exterior', 'Interior'].map(function (v) {
-    return '<button class="' + (serviceVenue === v ? 'on' : '') + '" data-act="svcVenue" data-v="' + v + '">' + v + '</button>';
-  }).join('') + '</div>';
-  html += '<div class="chiprow mb-12">' + ['All'].concat(SERVICE_CATEGORIES).map(function (c) {
-    return '<button class="chip" aria-pressed="' + (serviceCat === c) + '" data-act="svcCat" data-c="' + esc(c) + '">' + esc(c) + '</button>';
+  /* Trade is the filter that matters here too. Client type stays in the data
+     and on the service form; it is not worth a row of chips. */
+  html += '<div class="seg mb-12">' + ['All'].concat(SERVICE_TRADES).map(function (v) {
+    return '<button class="' + (serviceTrade === v ? 'on' : '') + '" data-act="svcTrade" data-v="' + esc(v) + '">' +
+      esc(v === 'Pressure Washing' ? 'Washing' : v) + '</button>';
   }).join('') + '</div>';
 
   html += '<div class="card flush"><div class="tablewrap"><table class="data"><thead><tr>' +
-    '<th>Code</th><th>Service</th><th>Venue</th><th>Conditions</th><th>Basis</th><th class="num">Rate</th><th class="num">Min</th>' +
+    '<th>Code</th><th>Service</th><th>Trade</th><th>Venue</th><th>Conditions</th><th>Basis</th><th class="num">Rate</th><th class="num">Min</th>' +
     '<th class="num">Production</th><th class="num">$ / labor hr</th><th class="num">Setup</th><th class="num">Cleanup</th><th></th>' +
     '</tr></thead><tbody>' +
     list.map(function (s) {
@@ -6872,6 +7053,7 @@ VIEWS.services = function () {
       return '<tr' + (s.active ? '' : ' style="opacity:.5"') + '>' +
         '<td><span class="tag" style="font-family:var(--mono)">' + esc(s.serviceCode) + '</span></td>' +
         '<td><span class="strong">' + esc(s.name) + '</span><br><span class="tiny muted">' + esc(s.category) + (s.active ? '' : ' · inactive') + '</span></td>' +
+        '<td><span class="badge">' + esc(tradeShort(s.trade)) + '</span></td>' +
         '<td><span class="badge ' + (s.venue === 'Interior' ? 'good' : (s.venue === 'Either' ? '' : 'brand')) + '">' + esc(s.venue || 'Exterior') + '</span></td>' +
         '<td><span class="tiny">' + esc(adjProfile(s.adjustmentProfile).label) + '</span></td>' +
         '<td>' + esc(b.label) + '</td>' +
@@ -6889,8 +7071,7 @@ VIEWS.services = function () {
   return html;
 };
 VIEWS.services_actions = function () { return '<button class="topbar-btn" data-act="newService">Add</button>'; };
-ACTIONS.svcCat = function (d) { serviceCat = d.c; render(); };
-ACTIONS.svcVenue = function (d) { serviceVenue = d.v; render(); };
+ACTIONS.svcTrade = function (d) { serviceTrade = d.v; render(); };
 ACTIONS.newService = function () { openServiceForm(null); };
 ACTIONS.editService = function (d) { openServiceForm(byId(state.services, d.id)); };
 
@@ -6990,6 +7171,7 @@ function openServiceForm(existing) {
         fieldNumber('sv_clean', 'Cleanup labor hours', s.cleanupHours, { min: 0 }) +
       '</div>' +
       '<div class="grid2">' +
+        fieldSelect('sv_trade', 'Trade', s.trade || 'Other', SERVICE_TRADES) +
         fieldSelect('sv_venue', 'Venue', s.venue || 'Exterior', SERVICE_VENUES) +
         fieldSelect('sv_profile', 'Site conditions asked', s.adjustmentProfile || 'general',
           ADJUSTMENT_PROFILES.map(function (p) { return { value: p.id, label: p.label }; }),
@@ -7039,6 +7221,7 @@ ACTIONS.saveServiceForm = function () {
   s.name = name;
   s.category = val('sv_cat', root);
   s.venue = val('sv_venue', root) || s.venue || 'Exterior';
+  s.trade = val('sv_trade', root) || 'Other';
   s.adjustmentProfile = val('sv_profile', root) || 'general';
   s.pricingMode = val('sv_pricing', root) || 'unit';
   s.description = val('sv_desc', root);
@@ -7400,10 +7583,11 @@ ACTIONS.resetDemo = function () {
 };
 /* ==========================================================================
    ADDRESS LOOKUP
-   Optional. The API key is entered in Settings and lives in this browser's
-   local storage — it is never part of the file, so the published page carries
-   no credential for anyone to scrape. Without a key the address fields behave
-   exactly as they always have: plain text you type.
+   A Geoapify key ships with the app so this works without setup. That is a
+   considered exception, not carelessness: the free tier has a hard ceiling and
+   no payment method behind it, so a stolen key can exhaust a day of lookups and
+   nothing more. It is replaceable in Settings, and clearing it puts the address
+   fields back to plain text you type.
 
    Every failure path falls back to typing. A network hiccup, an exhausted
    quota or a wrong key must never stop someone entering an address at a door.
@@ -7548,7 +7732,7 @@ function renderAddressSettings() {
   return '<div class="card"><div class="card-head"><h3>Address lookup</h3>' +
     (on ? '<span class="badge good">On</span>' : '<span class="badge">Off — type addresses</span>') + '</div>' +
     '<p class="small muted">Optional. With a key, the property address field searches real addresses and fills city, state and ZIP, so a typo cannot reach a quote or a crew sheet. Without one, nothing changes — you type the address as you do now.</p>' +
-    '<div class="notice">The key is stored <strong>in this browser only</strong>. It is never part of the app file, so the published page carries no key for anyone to find. Enter it once per device. It travels in your JSON backup.</div>' +
+    '<div class="notice">A key ships with the app so this works everywhere without setup. It is safe to publish: the free tier has a hard ceiling and no card behind it, so a stolen key can only exhaust a day of lookups — never run up a bill. Restrict it by referrer in the Geoapify dashboard to make even that unlikely. Replace it here with your own at any time.</div>' +
     fieldText('se_addrkey', 'Geoapify API key', cfg.apiKey, { placeholder: 'Paste your key', hint: 'Free account at geoapify.com — no card required.' }) +
     fieldText('se_addrcountry', 'Limit to country code', cfg.country, { placeholder: 'us', hint: 'Two-letter code. Leave blank to search worldwide.' }) +
     '<div class="btn-row"><button class="btn" data-act="testAddressKey">Test the key</button>' +
@@ -7577,7 +7761,7 @@ ACTIONS.testAddressKey = function () {
 };
 ACTIONS.clearAddressKey = function () {
   state.settings.integrations = state.settings.integrations || {};
-  state.settings.integrations.addressLookup = { provider: 'geoapify', apiKey: '', country: 'us' };
+  state.settings.integrations.addressLookup = { provider: 'geoapify', apiKey: '', country: 'us', keySetOnce: true };
   saveState();
   toast('Address lookup turned off', 'good');
   render();
